@@ -3,27 +3,27 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_access.hpp>
 
-CUDA_HOST_DEVICE Light::Light(std::vector<unsigned int> triIds) : ids(triIds), enabled(false)
+Light::Light(std::vector<unsigned int> triIds) : ids(triIds), enabled(false)
 {
 
 }
 
-CUDA_HOST_DEVICE Light::~Light()
+Light::~Light()
 {
 
 }
 
-CUDA_HOST_DEVICE bool Light::isEnabled() const
+bool Light::isEnabled() const
 {
   return enabled;
 }
 
-CUDA_HOST_DEVICE void Light::enable()
+void Light::enable()
 {
   enabled = true;
 }
 
-CUDA_HOST_DEVICE void Light::disable()
+void Light::disable()
 {
   enabled = false;
 }

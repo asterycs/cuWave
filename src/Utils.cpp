@@ -15,6 +15,7 @@
   #include <cuda_runtime.h>
 #endif
 
+#include "vector_math.hpp"
 
 void CheckOpenGLError(const char* call, const char* fname, int line)
 {
@@ -96,21 +97,21 @@ bool fileExists(const std::string& filename)
 
 CUDA_FUNCTION float AABB::area() const
 {
-  glm::fvec3 d = max - min;
+  float3 d = max - min;
 
-  return 2 * (d[0] * d[1] + d[0] * d[2] + d[1] * d[2]);
+  return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
 }
 
 CUDA_FUNCTION unsigned int AABB::maxAxis() const
 {
-  const glm::fvec3 d = glm::abs(max - min);
-  const float mv = glm::compMax(d);
+  const float3 d = abs(max - min);
 
-  for (unsigned int i = 0; i < 3; ++i)
-  {
-    if (d[i] == mv)
-      return i;
-  }
+  if (d.x >= d.y && d.x >= d.z)
+    return 0;
+  else if (d.y >= d.x && d.y >= d.z)
+    return 1;
+  else
+    return 2;
 
   return 0;
 }
@@ -121,8 +122,8 @@ CUDA_FUNCTION void AABB::add(const Triangle& t)
     add(v.p);
 }
 
-CUDA_FUNCTION void AABB::add(const glm::fvec3 v)
+CUDA_FUNCTION void AABB::add(const float3 v)
 {
-  min = glm::min(min, v);
-  max = glm::max(max, v);
+  min = fmin(min, v);
+  max = fmax(max, v);
 }

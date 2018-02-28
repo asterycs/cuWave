@@ -3,8 +3,6 @@
 #include <GL/glew.h>
 #include <GL/gl.h>
 
-#include <glm/gtx/component_wise.hpp>
-
 #include <cuda.h>
 #include <cuda_gl_interop.h>
 #include <curand.h>
@@ -975,7 +973,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, GL
 
   const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
   const dim3 grid( (canvasSize.x+ block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
-
+/*
   pathTraceKernel<<<grid, block>>>(
       currentPath,
       surfaceObj,
@@ -988,7 +986,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, GL
       curandStateDevXRaw,
       curandStateDevYRaw,
       model.getDeviceBVH());
-
+*/
   ++currentPath;
 
   CUDA_CHECK(cudaDeviceSynchronize());
@@ -1013,7 +1011,7 @@ void CudaRenderer::rayTraceToCanvas(GLTexture& canvas, const Camera& camera, GLM
   const dim3 grid( (canvasSize.x+ block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
   //dim3 block(BLOCKWIDTH * BLOCKWIDTH);
   //dim3 grid( (canvasSize.x * canvasSize.y + block.x - 1) / block.x);
-
+/*
   rayTraceKernel<<<grid, block>>>(\
       surfaceObj, \
       canvasSize, \
@@ -1025,7 +1023,7 @@ void CudaRenderer::rayTraceToCanvas(GLTexture& canvas, const Camera& camera, GLM
       curandStateDevXRaw, \
       curandStateDevYRaw, \
       model.getDeviceBVH());
-
+*/
   //cudaTestRnd<<<grid, block>>>(surfaceObj, canvasSize, curandStateDevXRaw, curandStateDevYRaw);
 
   CUDA_CHECK(cudaDeviceSynchronize());
@@ -1053,7 +1051,7 @@ std::vector<glm::fvec3> CudaRenderer::debugRayTrace(const glm::ivec2 pixelPos, c
   CUDA_CHECK(cudaMalloc((void**) &devPosPtr, nVertices * sizeof(glm::fvec3)));
   CUDA_CHECK(cudaMemset((void*) devPosPtr, 0, nVertices * sizeof(glm::fvec3)));
 
-  cudaDebugRayTrace<<<grid, block>>>(\
+  /*cudaDebugRayTrace<<<grid, block>>>(\
       size - pixelPos, \
       devPosPtr, \
       size, \
@@ -1065,7 +1063,7 @@ std::vector<glm::fvec3> CudaRenderer::debugRayTrace(const glm::ivec2 pixelPos, c
       curandStateDevXRaw, \
       curandStateDevYRaw, \
       model.getDeviceBVH());
-
+*/
   CUDA_CHECK(cudaDeviceSynchronize());
   model.unmapCudaTrianglePtr();
 
@@ -1095,7 +1093,7 @@ std::vector<glm::fvec3> CudaRenderer::debugPathTrace(const glm::ivec2 pixelPos, 
   CUDA_CHECK(cudaMalloc((void**) &devPosPtr, nVertices * sizeof(glm::fvec3)));
   CUDA_CHECK(cudaMemset((void*) devPosPtr, 0, nVertices * sizeof(glm::fvec3)));
 
-  cudaDebugPathTrace<<<grid, block>>>(\
+  /*cudaDebugPathTrace<<<grid, block>>>(\
       size - pixelPos, \
       devPosPtr, \
       size, \
@@ -1107,7 +1105,7 @@ std::vector<glm::fvec3> CudaRenderer::debugPathTrace(const glm::ivec2 pixelPos, 
       curandStateDevXRaw, \
       curandStateDevYRaw, \
       model.getDeviceBVH());
-
+*/
   CUDA_CHECK(cudaDeviceSynchronize());
   model.unmapCudaTrianglePtr();
 

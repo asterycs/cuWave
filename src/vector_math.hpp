@@ -185,6 +185,21 @@ inline __host__ __device__ float3 operator-(const float3 &a)
   return make_float3(-a.x, -a.y, -a.z);
 }
 
+inline __host__ __device__ float3 abs(const float3 &a)
+{
+  return make_float3(fabsf(a.x), fabsf(a.y), fabsf(a.z));
+}
+
+inline __host__ __device__ float3 fmax(const float3 &a, const float3 &b)
+{
+  return make_float3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z));
+}
+
+inline __host__ __device__ float3 fmin(const float3 &a, const float3 &b)
+{
+  return make_float3(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z));
+}
+
 static __inline__ __host__ __device__ float3 fminf(const float3 a, const float3 b)
 {
   return make_float3(fminf(a.x,b.x), fminf(a.y,b.y), fminf(a.z,b.z));

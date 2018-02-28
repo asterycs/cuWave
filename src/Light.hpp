@@ -24,16 +24,16 @@
 class Light
 {
 public:
-  CUDA_HOST_DEVICE Light();
-  CUDA_HOST_DEVICE Light(std::vector<unsigned int> triIds);
-  CUDA_HOST_DEVICE ~Light();
+  Light();
+  Light(std::vector<unsigned int> triIds);
+  ~Light();
   
-  CUDA_HOST_DEVICE bool isEnabled() const;
-  CUDA_HOST_DEVICE void enable();
-  CUDA_HOST_DEVICE void disable();
+  bool isEnabled() const;
+  void enable();
+  void disable();
 
   template<typename curandState>
-  CUDA_DEVICE void sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const;
+  void sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const;
 private:
   glm::fvec2 size;
   std::vector<unsigned int> ids;
@@ -41,7 +41,7 @@ private:
 };
 
 template<typename curandState>
-CUDA_DEVICE void Light::sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const
+void Light::sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const
 {
   const float x = curand_uniform(&randomState1);
   const float y = curand_uniform(&randomState2);
@@ -52,7 +52,7 @@ CUDA_DEVICE void Light::sample(float& pdf, glm::vec3& point, curandState& random
   pdf = 1.0f / (size.x * size.y);
 
   const glm::fvec2 rndClip(rf.x * size.x, rf.y * size.y);
-  const glm::fvec4 p4 = modelMat * glm::vec4(rndClip, 0, 1);
+  const glm::fvec4 p4 = glm::vec4(rndClip, 0, 1);
   point = glm::fvec3(p4);
 }
 
