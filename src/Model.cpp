@@ -7,7 +7,6 @@
 
 #include <glm/gtx/string_cast.hpp>
 
-#include "Utils.hpp"
 
 glm::fvec3 ai2glm3f(aiColor3D v)
 {
@@ -51,6 +50,8 @@ Model::Model(const aiScene *scene, const std::string& fileName) : fileName(fileN
   CUDA_CHECK(cudaMemcpy(devTriangles, triangles.data(), triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(devMaterials, materials.data(), materials.size() * sizeof(Material), cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(devTriangleMaterialIds, triMaterialIds.data(), triMaterialIds.size() * sizeof(unsigned int), cudaMemcpyHostToDevice));
+
+  nTriangles = triangles.size();
 }
 
 void Model::initialize(const aiScene *scene, std::vector<Triangle>& triangles, std::vector<Material>& materials, std::vector<unsigned int>& triMaterialIds)
@@ -189,4 +190,9 @@ const AABB& Model::getBbox() const
 const Node* Model::getDeviceBVH() const
 {
   return devBVH;
+}
+
+unsigned int Model::getNTriangles() const
+{
+  return nTriangles;
 }

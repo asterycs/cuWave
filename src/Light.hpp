@@ -16,9 +16,6 @@
   #include <curand_kernel.h>
 #endif
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-
 #include "Utils.hpp"
 
 class Light
@@ -40,6 +37,7 @@ private:
   bool enabled;
 };
 
+/*
 template<typename curandState>
 void Light::sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const
 {
@@ -55,5 +53,6 @@ void Light::sample(float& pdf, glm::vec3& point, curandState& randomState1, cura
   const glm::fvec4 p4 = glm::vec4(rndClip, 0, 1);
   point = glm::fvec3(p4);
 }
+*/
 
 #endif // LIGHT_HPP

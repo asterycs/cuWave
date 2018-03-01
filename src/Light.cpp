@@ -1,8 +1,5 @@
 #include "Light.hpp"
 
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/matrix_access.hpp>
-
 Light::Light(std::vector<unsigned int> triIds) : ids(triIds), enabled(false)
 {
 

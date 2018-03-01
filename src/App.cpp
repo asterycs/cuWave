@@ -64,11 +64,6 @@ void App::MainLoop()
     cudaRenderer.pathTraceToCanvas(glcanvas, camera, model, lights);
     glcontext.draw(glcanvas);
 
-    if (debugMode != DebugMode::NONE)
-    {
-      drawDebugInfo();
-    }
-
     glcontext.drawUI(activeRenderer, debugMode);
     glcontext.swapBuffers();
   }

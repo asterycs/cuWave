@@ -64,10 +64,7 @@ std::string readFile(const std::string& filePath);
 
 bool fileExists(const std::string& fileName);
 
-CUDA_FUNCTION float3 glm32cuda3(const glm::fvec3 v)
-{
-  return make_float3(v.x, v.y, v.z);
-}
+CUDA_FUNCTION float3 glm32cuda3(const glm::fvec3 v);
 
 struct Material
 {

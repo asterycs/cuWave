@@ -19,6 +19,7 @@ public:
   const Triangle* getDeviceTriangles() const;
   const Material* getDeviceMaterials() const;
   const unsigned int* getDeviceTriangleMaterialIds() const;
+  unsigned int getNTriangles() const;
   
   const AABB& getBbox() const;
   const Node* getDeviceBVH() const;
@@ -29,6 +30,7 @@ private:
   Triangle* devTriangles;
   Material* devMaterials;
   unsigned int* devTriangleMaterialIds;
+  unsigned int nTriangles;
 
   std::string fileName;
 

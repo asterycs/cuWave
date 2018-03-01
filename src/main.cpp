@@ -65,11 +65,7 @@ int main(int argc, char * argv[]) {
       {
         App& app = App::getInstance();
 
-        if (renderer == "raytrace")
-        {
-          app.rayTraceToFile(scenefile, output);
-        }
-        else if (renderer == "pathtrace")
+        if (renderer == "pathtrace")
         {
           app.pathTraceToFile(scenefile, output, paths);
         }else

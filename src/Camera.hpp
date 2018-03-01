@@ -9,9 +9,6 @@
   #define CUDA_HOST
 #endif
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-
 #include "Utils.hpp"
 
 

@@ -70,6 +70,11 @@ void CheckCudaError(const char* call, const char* fname, int line)
 }
 #endif
 
+CUDA_FUNCTION float3 glm32cuda3(const glm::fvec3 v)
+{
+  return make_float3(v.x, v.y, v.z);
+}
+
 std::string readFile(const std::string& filePath) {
     std::string content;
     std::ifstream fileStream(filePath, std::ios::in);
