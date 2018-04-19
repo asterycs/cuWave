@@ -50,8 +50,8 @@ private:
   GLenum type;
 
 #ifdef ENABLE_CUDA
-  cudaGraphicsResource_t cudaCanvasResource;
-  cudaArray_t cudaCanvasArray;
+  cudaGraphicsResource_t cudaGraphicsResource;
+  cudaArray_t cudaGraphicsArray;
 #endif
 };
 

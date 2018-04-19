@@ -236,8 +236,7 @@ void App::createSceneFile(const std::string& filename)
 
 void App::loadModel(const std::string& modelFile)
 {
-  Model scene = loader.loadOBJ(modelFile);
-  model = scene;
+  model = loader.loadOBJ(modelFile);
 }
 
 void App::loadSceneFile(const std::string& filename)

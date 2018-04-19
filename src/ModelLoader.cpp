@@ -23,8 +23,6 @@ Model ModelLoader::loadOBJ(const std::string& path)
     return Model();
   }
 
-  auto sc = Model(model, path);
-
-  return sc;
+  return Model(model, path);
 }
 

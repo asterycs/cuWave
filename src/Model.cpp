@@ -20,11 +20,9 @@ Model::Model()
 
 Model::~Model()
 {
-  CUDA_CHECK(cudaFree(devTriangles));
-  CUDA_CHECK(cudaFree(devMaterials));
-  CUDA_CHECK(cudaFree(devTriangleMaterialIds));
-  CUDA_CHECK(cudaFree(devBVH));
+
 }
+
 
 Model::Model(const aiScene *scene, const std::string& fileName) : fileName(fileName)
 {
@@ -46,10 +44,10 @@ Model::Model(const aiScene *scene, const std::string& fileName) : fileName(fileN
   CUDA_CHECK(cudaMalloc((void**) &devMaterials, materials.size() * sizeof(Material)));
   CUDA_CHECK(cudaMalloc((void**) &devTriangleMaterialIds, triMaterialIds.size() * sizeof(unsigned int)));
 
-  CUDA_CHECK(cudaMemcpy(devBVH, bvh.data(), bvh.size() * sizeof(Node), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(devTriangles, triangles.data(), triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(devMaterials, materials.data(), materials.size() * sizeof(Material), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(devTriangleMaterialIds, triMaterialIds.data(), triMaterialIds.size() * sizeof(unsigned int), cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(devBVH.get(), bvh.data(), bvh.size() * sizeof(Node), cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(devTriangles.get(), triangles.data(), triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(devMaterials.get(), materials.data(), materials.size() * sizeof(Material), cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(devTriangleMaterialIds.get(), triMaterialIds.data(), triMaterialIds.size() * sizeof(unsigned int), cudaMemcpyHostToDevice));
 
   nTriangles = triangles.size();
 }
@@ -164,17 +162,17 @@ void Model::initialize(const aiScene *scene, std::vector<Triangle>& triangles, s
 
 const Triangle* Model::getDeviceTriangles() const
 {
-  return devTriangles;
+  return devTriangles.get();
 }
 
 const Material* Model::getDeviceMaterials() const
 {
-  return devMaterials;
+  return devMaterials.get();
 }
 
 const unsigned int* Model::getDeviceTriangleMaterialIds() const
 {
-  return devTriangleMaterialIds;
+  return devTriangleMaterialIds.get();
 }
 
 const std::string& Model::getFileName() const
@@ -189,7 +187,7 @@ const AABB& Model::getBbox() const
 
 const Node* Model::getDeviceBVH() const
 {
-  return devBVH;
+  return devBVH.get();
 }
 
 unsigned int Model::getNTriangles() const
