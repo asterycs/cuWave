@@ -1,10 +1,7 @@
 
 file(GLOB CXX_SRC *.cpp)
-
-if (ENABLE_CUDA)
-    file(GLOB CU_SRC *.cu)
-    set_source_files_properties(Camera.cpp Light.cpp Utils.cpp PROPERTIES LANGUAGE CUDA)
-endif(ENABLE_CUDA)
+file(GLOB CU_SRC *.cu)
+set_source_files_properties(App.cpp Model.cpp Camera.cpp Light.cpp Utils.cpp PROPERTIES LANGUAGE CUDA)
 
 file(GLOB SHADERS "shaders/*/*.glsl")
 source_group("shaders" FILES SHADERS)
@@ -15,9 +12,7 @@ add_dependencies(wavy assimp glfw cxxopts nativefiledialog)
 target_link_libraries(wavy ${LINK_LIBS})
 add_dependencies(wavy copy_shader_files copy_benchmark_script)
 
-if (ENABLE_CUDA)
-    set_target_properties(wavy PROPERTIES CUDA_STANDARD 14 CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-endif(ENABLE_CUDA)
+set_target_properties(wavy PROPERTIES CUDA_STANDARD 14 CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 #set_target_properties(wavy
 #    PROPERTIES

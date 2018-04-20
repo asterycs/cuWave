@@ -4,11 +4,8 @@
 #include "ModelLoader.hpp"
 #include "GLContext.hpp"
 #include "GLTexture.hpp"
-#include "Light.hpp"
 
-#ifdef ENABLE_CUDA
-  #include "CudaRenderer.hpp"
-#endif
+#include "CudaRenderer.hpp"
 
 #define LAST_SCENEFILE_NAME "last.scene"
 
@@ -49,11 +46,9 @@ private:
     ActiveRenderer activeRenderer;
 
     GLContext glcontext;
-#ifdef ENABLE_CUDA
     CudaRenderer cudaRenderer;
-#endif
+
     Model model;
-    std::vector<Light> lights;
     GLTexture glcanvas;
     
     Camera camera;

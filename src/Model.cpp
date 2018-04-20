@@ -5,8 +5,6 @@
 #include <stack>
 #include <cmath>
 
-#include <glm/gtx/string_cast.hpp>
-
 
 glm::fvec3 ai2glm3f(aiColor3D v)
 {
@@ -26,28 +24,23 @@ Model::~Model()
 
 Model::Model(const aiScene *scene, const std::string& fileName) : fileName(fileName)
 {
-  std::vector<Triangle> triangles;
-  std::vector<Material> materials;
-  std::vector<unsigned int> triMaterialIds;
+  std::vector<Triangle> tris;
+  std::vector<Material> mats;
+  std::vector<unsigned int> triMatIds;
 
-  initialize(scene, triangles, materials, triMaterialIds);
+  initialize(scene, tris, mats, triMatIds);
   
   BVHBuilder bvhbuilder;
-  bvhbuilder.build(triangles, triMaterialIds);
+  bvhbuilder.build(tris, triMatIds);
   
-  auto bvh = bvhbuilder.getBVH();
-  triangles = bvhbuilder.getTriangles();
-  triMaterialIds = bvhbuilder.getTriangleMaterialIds();
+  std::vector<Node> bvh = bvhbuilder.getBVH();
+  tris = bvhbuilder.getTriangles();
+  triMatIds = bvhbuilder.getTriangleMaterialIds();
 
-  CUDA_CHECK(cudaMalloc((void**) &devBVH, bvh.size() * sizeof(Node)));
-  CUDA_CHECK(cudaMalloc((void**) &devTriangles, triangles.size() * sizeof(Triangle)));
-  CUDA_CHECK(cudaMalloc((void**) &devMaterials, materials.size() * sizeof(Material)));
-  CUDA_CHECK(cudaMalloc((void**) &devTriangleMaterialIds, triMaterialIds.size() * sizeof(unsigned int)));
-
-  CUDA_CHECK(cudaMemcpy(devBVH.get(), bvh.data(), bvh.size() * sizeof(Node), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(devTriangles.get(), triangles.data(), triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(devMaterials.get(), materials.data(), materials.size() * sizeof(Material), cudaMemcpyHostToDevice));
-  CUDA_CHECK(cudaMemcpy(devTriangleMaterialIds.get(), triMaterialIds.data(), triMaterialIds.size() * sizeof(unsigned int), cudaMemcpyHostToDevice));
+  this->triangles = triangles;
+  this->materials = materials;
+  this->triangleMaterialIds = triMatIds;
+  this->bvh = bvh;
 
   nTriangles = triangles.size();
 }
@@ -67,6 +60,8 @@ void Model::initialize(const aiScene *scene, std::vector<Triangle>& triangles, s
 
     std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
+
+    bool createLight(false);
 
     if (mesh->mMaterialIndex > 0)
     {
@@ -95,6 +90,9 @@ void Model::initialize(const aiScene *scene, std::vector<Triangle>& triangles, s
       material.colorSpecular    = glm32cuda3(ai2glm3f(aiSpecular));
       material.colorTransparent = glm32cuda3(glm::sqrt(glm::fvec3(1.f) - ai2glm3f(aiTransparent)));
 
+      if (material.colorEmission != make_float3(0.f, 0.f, 0.f))
+    	createLight = true;
+
       int sm;
       mat.Get(AI_MATKEY_SHADING_MODEL, sm);
 
@@ -118,6 +116,8 @@ void Model::initialize(const aiScene *scene, std::vector<Triangle>& triangles, s
       triangleOffset += mesh->mNumFaces;
     }else
       continue;
+
+    std::vector<unsigned int> lightIds;
 
     for (std::size_t vi = 0; vi < mesh->mNumVertices; vi++)
     {
@@ -149,6 +149,9 @@ void Model::initialize(const aiScene *scene, std::vector<Triangle>& triangles, s
       {
         Triangle triangle = Triangle(vertices[face.mIndices[0]], vertices[face.mIndices[1]], vertices[face.mIndices[2]]);
 
+        if (createLight)
+          lightIds.push_back(triangles.size());
+
         triangles.push_back(triangle);
 
         maxTri = fmaxf(maxTri, triangle.max());
@@ -157,22 +160,25 @@ void Model::initialize(const aiScene *scene, std::vector<Triangle>& triangles, s
 
       triMaterialIds.push_back(materials.size() - 1);
     }
+
+    if (createLight)
+      lights.push_back(Light(lightIds));
   }
 }
 
 const Triangle* Model::getDeviceTriangles() const
 {
-  return devTriangles.get();
+  return thrust::raw_pointer_cast(&triangles[0]);
 }
 
 const Material* Model::getDeviceMaterials() const
 {
-  return devMaterials.get();
+  return thrust::raw_pointer_cast(&materials[0]);
 }
 
 const unsigned int* Model::getDeviceTriangleMaterialIds() const
 {
-  return devTriangleMaterialIds.get();
+  return thrust::raw_pointer_cast(&triangleMaterialIds[0]);
 }
 
 const std::string& Model::getFileName() const
@@ -187,10 +193,15 @@ const AABB& Model::getBbox() const
 
 const Node* Model::getDeviceBVH() const
 {
-  return devBVH.get();
+  return thrust::raw_pointer_cast(&bvh[0]);
 }
 
 unsigned int Model::getNTriangles() const
 {
   return nTriangles;
+}
+
+const Light* Model::getDeviceLights() const
+{
+  return thrust::raw_pointer_cast(&lights[0]);
 }

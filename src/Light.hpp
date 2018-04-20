@@ -11,35 +11,32 @@
   #define CUDA_HOST
 #endif
 
-#ifdef ENABLE_CUDA
-  #include <curand.h>
-  #include <curand_kernel.h>
-#endif
+#include <curand.h>
+#include <curand_kernel.h>
 
 #include "Utils.hpp"
 
 class Light
 {
 public:
-  Light();
-  Light(std::vector<unsigned int> triIds);
-  ~Light();
+  CUDA_HOST_DEVICE Light();
+  CUDA_HOST Light(std::vector<unsigned int> triIds);
+  CUDA_HOST_DEVICE ~Light();
   
-  bool isEnabled() const;
-  void enable();
-  void disable();
+  CUDA_HOST_DEVICE bool isEnabled() const;
+  CUDA_HOST_DEVICE void enable();
+  CUDA_HOST_DEVICE void disable();
 
   template<typename curandState>
-  void sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const;
+  CUDA_DEVICE void sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const;
 private:
   glm::fvec2 size;
-  std::vector<unsigned int> ids;
+  unsigned int* ids;
   bool enabled;
 };
 
-/*
 template<typename curandState>
-void Light::sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const
+CUDA_DEVICE void Light::sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const
 {
   const float x = curand_uniform(&randomState1);
   const float y = curand_uniform(&randomState2);
@@ -53,6 +50,5 @@ void Light::sample(float& pdf, glm::vec3& point, curandState& randomState1, cura
   const glm::fvec4 p4 = glm::vec4(rndClip, 0, 1);
   point = glm::fvec3(p4);
 }
-*/
 
 #endif // LIGHT_HPP

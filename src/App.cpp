@@ -23,7 +23,6 @@ App::App() :
     cudaRenderer(),
 #endif
     model(),
-    lights(),
     glcanvas(glm::ivec2(WWIDTH, WHEIGHT)),
     camera(),
     loader(),
@@ -61,7 +60,7 @@ void App::MainLoop()
     float dTime = glcontext.getDTime();
     handleControl(dTime);
 
-    cudaRenderer.pathTraceToCanvas(glcanvas, camera, model, lights);
+    cudaRenderer.pathTraceToCanvas(glcanvas, camera, model);
     glcontext.draw(glcanvas);
 
     glcontext.drawUI(activeRenderer, debugMode);
@@ -236,7 +235,8 @@ void App::createSceneFile(const std::string& filename)
 
 void App::loadModel(const std::string& modelFile)
 {
-  model = loader.loadOBJ(modelFile);
+  const aiScene* scene = loader.loadOBJ(modelFile);
+  model = Model(scene, modelFile);
 }
 
 void App::loadSceneFile(const std::string& filename)
@@ -278,7 +278,7 @@ void App::pathTraceToFile(const std::string& sceneFile, const std::string& outfi
 
   for (int i = 0; i < paths; ++i)
   {
-    cudaRenderer.pathTraceToCanvas(glcanvas, camera, model, lights);
+    cudaRenderer.pathTraceToCanvas(glcanvas, camera, model);
   }
 
   cudaEventRecord(stop);

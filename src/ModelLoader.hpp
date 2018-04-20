@@ -13,8 +13,8 @@ public:
   ModelLoader();
   ~ModelLoader();
   
-  Model loadOBJ(const std::string& path);
-  
+  const aiScene* loadOBJ(const std::string& path);
+
 private:
   Assimp::Importer importer;
 };

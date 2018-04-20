@@ -125,7 +125,7 @@ pathTraceKernel(
     const Camera camera,
     const Material* materials,
     const unsigned int* triangleMaterialIds,
-    const Light light,
+    const Light* lights,
     curandStateType* curandStateDevXPtr,
     curandStateType* curandStateDevYPtr,
     const Node* bvh)
@@ -150,7 +150,7 @@ pathTraceKernel(
       camera, \
       materials, \
       triangleMaterialIds, \
-      light, \
+      lights, \
       state1, \
       state2);
 */
@@ -167,7 +167,6 @@ pathTraceKernel(
     const glm::fvec3 oldCol = readFromCanvas(x, y, canvas, canvasSize);
     const glm::fvec3 blend = oldCol * glm::fvec3((float) (path - 1) / path) + glm::fvec3((float) 1 / path) * color;
     writeToCanvas(x, y, canvas, canvasSize, blend);
-
   }
 
   return;
@@ -278,7 +277,7 @@ CudaRenderer::~CudaRenderer()
 
 }
 
-void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Model& model, std::vector<Light>& light)
+void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Model& model)
 {
   if (model.getNTriangles() == 0)
     return;
@@ -302,20 +301,20 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
 
   const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
   const dim3 grid( (canvasSize.x+ block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
-/*
+
   pathTraceKernel<<<grid, block>>>(
       currentPath,
       surfaceObj,
       canvasSize,
       devTriangles,
       camera,
-      model.getCudaMaterialsPtr(),
-      model.getCudaTriangleMaterialIdsPtr(),
-      light.getLight(),
+      model.getDeviceMaterials(),
+      model.getDeviceTriangleMaterialIds(),
+      model.getDeviceLights(),
       curandStateDevXRaw,
       curandStateDevYRaw,
       model.getDeviceBVH());
-*/
+
   ++currentPath;
 
   CUDA_CHECK(cudaDeviceSynchronize());

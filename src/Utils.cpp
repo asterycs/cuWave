@@ -117,8 +117,6 @@ CUDA_FUNCTION unsigned int AABB::maxAxis() const
     return 1;
   else
     return 2;
-
-  return 0;
 }
 
 CUDA_FUNCTION void AABB::add(const Triangle& t)

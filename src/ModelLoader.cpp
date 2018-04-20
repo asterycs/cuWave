@@ -9,7 +9,7 @@ ModelLoader::~ModelLoader()
 {
 }
 
-Model ModelLoader::loadOBJ(const std::string& path)
+const aiScene* ModelLoader::loadOBJ(const std::string& path)
 {
   const aiScene* model = importer.ReadFile( path,
         aiProcess_CalcTangentSpace       |
@@ -20,9 +20,9 @@ Model ModelLoader::loadOBJ(const std::string& path)
   if (!model)
   {
     std::cerr << "Error loading file: " << importer.GetErrorString() << std::endl;
-    return Model();
+    return nullptr;
   }
 
-  return Model(model, path);
+  return model;
 }
 

@@ -4,13 +4,8 @@ cmake_minimum_required(VERSION 3.10)
 set(ENABLE_CUDA ON CACHE BOOL "Enable Cuda features") # Enable by default
 
 # Set project language
-if (ENABLE_CUDA)
-    project(wavy LANGUAGES CXX CUDA)
-    add_definitions(-DENABLE_CUDA)
-else()
-    project(wavy LANGUAGES CXX)
-    message("CUDA features disabled")
-endif(ENABLE_CUDA)
+project(wavy LANGUAGES CXX CUDA)
+add_definitions(-DENABLE_CUDA)
 
 # Define some variables
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/modules/)
@@ -21,13 +16,12 @@ include(ExternalProject)
 
 
 # Pre-installed dependencies
-if (ENABLE_CUDA)
-    find_package(CUDA REQUIRED)
-    CUDA_SELECT_NVCC_ARCH_FLAGS(CUDA_ARCH_FLAGS Auto)
-    list(APPEND CMAKE_CUDA_FLAGS ${CUDA_ARCH_FLAGS})
-    string(REPLACE ";" " " CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}") # Phew...
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call --use_fast_math -Xptxas -v -Xptxas -dlcm=ca")
-endif(ENABLE_CUDA)
+find_package(CUDA REQUIRED)
+CUDA_SELECT_NVCC_ARCH_FLAGS(CUDA_ARCH_FLAGS Auto)
+list(APPEND CMAKE_CUDA_FLAGS ${CUDA_ARCH_FLAGS})
+string(REPLACE ";" " " CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}") # Phew...
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call --use_fast_math -Xptxas -v -Xptxas -dlcm=ca")
+
 
 find_package(OpenMP)
 if (OPENMP_FOUND)

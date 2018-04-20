@@ -22,7 +22,7 @@ public:
   CudaRenderer();
   ~CudaRenderer();
 
-  void pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Model& model, std::vector<Light>& lights);
+  void pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Model& model);
   void resize(const glm::ivec2 size);
   void reset();
 

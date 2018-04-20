@@ -5,34 +5,30 @@
 #include <string>
 #include <memory>
 
+#include <thrust/device_vector.h>
+
 #include "assimp/scene.h"
 
 #include "Utils.hpp"
 #include "Triangle.hpp"
 #include "BVHBuilder.hpp"
-
-struct CudaDeleter
-{
-  void operator() (void *ptr) const
-  {
-    cudaFree(ptr);
-  }
-};
+#include "Light.hpp"
 
 class Model
 {
 public:
   Model();
+  Model(const aiScene *scene, const std::string& fileName);
   ~Model();
   Model(Model&) = delete;
   Model(Model&&) = default;
   Model& operator=(Model&) = delete;
   Model& operator=(Model&&) = default;
 
-  Model(const aiScene *scene, const std::string& fileName);
   const Triangle* getDeviceTriangles() const;
   const Material* getDeviceMaterials() const;
   const unsigned int* getDeviceTriangleMaterialIds() const;
+  const Light* getDeviceLights() const;
   unsigned int getNTriangles() const;
   
   const AABB& getBbox() const;
@@ -41,15 +37,16 @@ public:
 private:
   void initialize(const aiScene *scene, std::vector<Triangle>& triangles, std::vector<Material>& materials, std::vector<unsigned int>& triMaterialIds);
 
-  std::unique_ptr<Triangle, CudaDeleter> devTriangles;
-  std::unique_ptr<Material, CudaDeleter> devMaterials;
-  std::unique_ptr<unsigned int, CudaDeleter> devTriangleMaterialIds;
+  thrust::device_vector<Light> lights;
+  thrust::device_vector<Triangle> triangles;
+  thrust::device_vector<Material> materials;
+  thrust::device_vector<unsigned int> triangleMaterialIds;
   unsigned int nTriangles;
 
   std::string fileName;
 
   AABB boundingBox;
-  std::unique_ptr<Node, CudaDeleter> devBVH;
+  thrust::device_vector<Node> bvh;
 };
 
 #endif
