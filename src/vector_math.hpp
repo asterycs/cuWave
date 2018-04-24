@@ -195,6 +195,11 @@ inline __host__ __device__ float3 fmax(const float3 &a, const float3 &b)
   return make_float3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z));
 }
 
+inline __host__ __device__ float fmin_compf(const float3 &v)
+{
+  return fminf(v.x, fminf(v.y, v.z));
+}
+
 inline __host__ __device__ float3 fmin(const float3 &a, const float3 &b)
 {
   return make_float3(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z));

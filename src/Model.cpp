@@ -11,7 +11,7 @@ glm::fvec3 ai2glm3f(aiColor3D v)
   return glm::fvec3(v[0], v[1], v[2]);
 }
 
-Model::Model()
+Model::Model() : nTriangles(0)
 {
   
 }

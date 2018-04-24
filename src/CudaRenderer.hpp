@@ -16,6 +16,34 @@
 #define CURAND_TYPE curandState_t
 #endif
 
+struct Queues
+{
+  uint32_t* extensionQueue;
+  uint32_t extensionQueueSize;
+
+  uint32_t* shadowQueue;
+  uint32_t shadowQueueSize;
+
+  uint32_t* endQueue;
+  uint32_t endQueueSize;
+
+  Queues()
+    :
+      extensionQueue(nullptr),
+      extensionQueueSize(0),
+      shadowQueue(nullptr),
+      shadowQueueSize(0),
+      endQueue(nullptr),
+      endQueueSize(0) {};
+};
+
+struct Paths
+{
+  glm::fvec2* pixels;
+  Ray* rays;
+  RaycastResult* results;
+};
+
 class CudaRenderer
 {
 public:
@@ -32,7 +60,10 @@ private:
 
   Camera lastCamera;
   glm::ivec2 lastSize;
-  unsigned int currentPath;
+  uint32_t currentPath;
+
+  Queues queues;
+  Paths paths;
 };
 
 #endif // CUDARENDERER_HPP

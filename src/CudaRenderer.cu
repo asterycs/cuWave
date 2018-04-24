@@ -29,6 +29,173 @@
 
 #define PATH_TRACE_BOUNCES 6
 
+const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
+
+__device__ bool bboxIntersect(const AABB box, const float3 origin, const float3 inverseDirection, float& t)
+{
+  float3 tmin = make_float3(-BIGT, -BIGT, -BIGT),
+         tmax = make_float3(BIGT, BIGT, BIGT);
+
+  const float3 tdmin = (box.min - origin) * inverseDirection;
+  const float3 tdmax = (box.max - origin) * inverseDirection;
+
+  tmin = fminf(tdmin, tdmax);
+  tmax = fmaxf(tdmin, tdmax);
+
+  const float tmind = fmin_compf(tmin);
+  const float tmaxd = fmin_compf(tmax);
+
+  t = fminf(tmind, tmaxd);
+
+  return tmaxd >= tmind && !(tmaxd < 0.f && tmind < 0.f);
+}
+
+__device__ bool rayTriangleIntersection(const Ray ray, const Triangle& triangle, float& t, float2& uv)
+{
+  /* Möller-Trumbore algorithm
+   * https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+   */
+
+  // TODO: Experiment with __ldg
+
+  const float3 vertex0 = triangle.vertices[0].p;
+
+  const float3 edge1 = triangle.vertices[1].p - vertex0;
+  const float3 edge2 = triangle.vertices[2].p - vertex0;
+
+  const float3 h = cross(ray.direction, edge2);
+  const float a = dot(edge1, h);
+
+  if (a > -INTERSECT_EPSILON && a < INTERSECT_EPSILON)
+    return false;
+
+  const float f = __fdividef(1.f, a);
+  const float3 s = ray.origin - vertex0;
+  const float u = f * dot(s, h);
+
+  if (u < 0.f || u > 1.0f)
+    return false;
+
+  const float3 q = cross(s, edge1);
+  const float v = f * dot(ray.direction, q);
+
+  if (v < 0.0 || u + v > 1.0)
+    return false;
+
+  t = f * dot(edge2, q);
+
+  if (t > INTERSECT_EPSILON)
+  {
+    uv = make_float2(u, v);
+    return true;
+  }
+  else
+    return false;
+}
+
+
+enum HitType
+{
+    ANY,
+    CLOSEST
+};
+
+template <const HitType hitType>
+__device__
+RaycastResult rayCast(const Ray ray, const Node* bvh, const Triangle* triangles, const float maxT)
+{
+  float tMin = maxT;
+  int minTriIdx = -1;
+  float2 minUV;
+  RaycastResult result;
+  const float3 inverseDirection = make_float3(1.f, 1.f, 1.f) / ray.direction;
+
+  int ptr = 0;
+  unsigned int stack[8] { 0 };
+  int i = -1;
+  float t = 0;
+  float2 uv;
+  bool getNextNode = true;
+
+  while (ptr >= 0)
+  {
+    unsigned int currentNodeIdx = stack[ptr];
+    Node currentNode = bvh[currentNodeIdx];
+
+
+    if (currentNode.rightIndex == -1)
+    {
+      getNextNode = false;
+
+      if (i >= currentNode.startTri && i < currentNode.startTri + currentNode.nTri)
+      {
+        if (rayTriangleIntersection(ray, triangles[i], t, uv))
+        {
+
+          if(t < tMin)
+          {
+            tMin = t;
+            minTriIdx = i;
+            minUV = uv;
+
+            if (hitType == HitType::ANY)
+              break;
+          }
+        }
+
+        ++i;
+
+        if (i >= currentNode.startTri + currentNode.nTri)
+          getNextNode = true;
+
+      }else
+      {
+        i = currentNode.startTri;
+      }
+
+    }else
+    {
+      const AABB leftBox = bvh[stack[ptr] + 1].bbox;
+      const AABB rightBox = bvh[currentNode.rightIndex].bbox;
+
+      float leftt, rightt;
+
+      unsigned int hitMask = bboxIntersect(leftBox, ray.origin, inverseDirection, leftt) ? LEFT_HIT_BIT : 0x00;
+      hitMask = bboxIntersect(rightBox, ray.origin, inverseDirection, rightt) ? hitMask | RIGHT_HIT_BIT : hitMask;
+
+      // TODO: Push closer one last, don't intersect if closest hit is closer than box
+      if ((hitMask & LEFT_HIT_BIT) != 0x00 && leftt < tMin)
+      {
+        stack[ptr] = currentNodeIdx + 1;
+        ++ptr;
+      }
+
+      if ((hitMask & RIGHT_HIT_BIT) != 0x00 && rightt < tMin)
+      {
+        stack[ptr] = currentNode.rightIndex;
+        ++ptr;
+      }
+    }
+
+    if (getNextNode)
+    {
+      --ptr;
+      i = -1;
+    }
+
+  }
+
+  if (minTriIdx == -1)
+    return result;
+
+  result.point = ray.origin + ray.direction * tMin;
+  result.t = tMin;
+  result.triangleIdx = minTriIdx;
+  result.uv = minUV;
+
+
+  return result;
+}
 
 template <typename curandState>
 __global__ void initRand(const int seed, curandState* const curandStateDevPtr, const glm::ivec2 size)
@@ -52,8 +219,8 @@ __global__ void initRand(curandDirectionVectors64_t* sobolDirectionVectors, unsi
   if (x >= size.x || y >= size.y)
     return;
     
-  const unsigned int scrIdx = x + size.x * y;
-  const unsigned int dirIdx = (x + size.x * y) % 10000;
+  const uint32_t scrIdx = x + size.x * y;
+  const uint32_t dirIdx = (x + size.x * y) % 10000;
 
   curandDirectionVectors64_t* dir = &sobolDirectionVectors[dirIdx];
   unsigned long long scr = sobolScrambleConstants[scrIdx];
@@ -64,14 +231,14 @@ __global__ void initRand(curandDirectionVectors64_t* sobolDirectionVectors, unsi
   state[x + size.x * y] = localState;
 }
 
-__device__ void writeToCanvas(const unsigned int x, const unsigned int y, const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize, const glm::vec3 data)
+__device__ void writeToCanvas(const uint32_t x, const uint32_t y, const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize, const glm::vec3 data)
 {
   const float4 out = make_float4(data.x, data.y, data.z, 1.f);
   surf2Dwrite(out, surfaceObj, (canvasSize.x - 1 - x) * sizeof(out), y);
   return;
 }
 
-__device__ glm::fvec3 readFromCanvas(const unsigned int x, const unsigned int y, const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize)
+__device__ glm::fvec3 readFromCanvas(const uint32_t x, const uint32_t y, const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize)
 {
   float4 in;
   surf2Dread(&in, surfaceObj, (canvasSize.x - 1 - x) * sizeof(in), y);
@@ -83,48 +250,16 @@ __device__ glm::fvec3 readFromCanvas(const unsigned int x, const unsigned int y,
 
 template <typename curandStateType>
 __global__ void
-cudaDebugPathTrace(
-    const glm::ivec2 pixelPos,
-    glm::fvec3* devPosPtr,
-    const glm::ivec2 size,
-    const Triangle* triangles,
-    const Camera camera,
-    const Material* materials,
-    const unsigned int* triangleMaterialIds,
-    const Light light,
-    curandStateType* curandStateDevXPtr,
-    curandStateType* curandStateDevYPtr,
-    const Node* bvh)
-{
-  const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(pixelPos.x, pixelPos.y, size);
-  const float ar = (float) size.x / size.y;
-  const Ray ray = camera.generateRay(nic, ar);
-/*
-  (void) pathTrace<true>(
-      bvh,
-      ray,
-      triangles,
-      camera,
-      materials,
-      triangleMaterialIds,
-      light,
-      curandStateDevXPtr[pixelPos.x + size.x * pixelPos.y],
-      curandStateDevYPtr[pixelPos.x + size.x * pixelPos.y],
-      devPosPtr);
-*/
-  return;
-}
-
-template <typename curandStateType>
-__global__ void
-pathTraceKernel(
-    const unsigned int path,
-    const cudaSurfaceObject_t canvas,
+logicKernel(
+    const uint32_t path,
     const glm::ivec2 canvasSize,
+    cudaSurfaceObject_t canvas,
+    Queues* queues,
+    Paths* paths,
     const Triangle* triangles,
     const Camera camera,
     const Material* materials,
-    const unsigned int* triangleMaterialIds,
+    const uint32_t* triangleMaterialIds,
     const Light* lights,
     curandStateType* curandStateDevXPtr,
     curandStateType* curandStateDevYPtr,
@@ -142,18 +277,10 @@ pathTraceKernel(
 
   curandStateType state1 = curandStateDevXPtr[x + y * canvasSize.x];
   curandStateType state2 = curandStateDevYPtr[x + y * canvasSize.x];
-/*
-  glm::fvec3 color = pathTrace<false>(\
-      bvh,
-      ray, \
-      triangles, \
-      camera, \
-      materials, \
-      triangleMaterialIds, \
-      lights, \
-      state1, \
-      state2);
-*/
+
+  // add to material queue
+  // add to new path queue
+
   glm::fvec3 color = glm::fvec3(0.4,0.4,0.4);
   curandStateDevXPtr[x + y * canvasSize.x] = state1;
   curandStateDevYPtr[x + y * canvasSize.x] = state2;
@@ -172,32 +299,41 @@ pathTraceKernel(
   return;
 }
 
-template <typename curandStateType>
-__global__ void
-cudaTestRnd(\
-    const cudaSurfaceObject_t canvas, \
-    const glm::ivec2 canvasSize, \
-    curandStateType* curandStateDevXPtr, \
-    curandStateType* curandStateDevYPtr)
+__global__ void newPaths(Paths paths, Queues queues, Camera camera, const glm::fvec2 canvasSize)
 {
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
 
-  if (x >= canvasSize.x || y >= canvasSize.y)
+  glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(x, y, canvasSize);
+
+  Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x/canvasSize.y));
+
+  const int idx = x + y*canvasSize.x;
+  paths.rays[idx] = ray;
+  paths.pixels[idx] = glm::fvec2(x, y);
+  queues.extensionQueue[idx] = idx;
+}
+
+__global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 canvasSize, const Triangle* triangles, const Node* bvh, const Material* materials, const unsigned int* traingelMaterialIds)
+{
+  const int x = threadIdx.x + blockIdx.x * blockDim.x;
+  const int y = threadIdx.y + blockIdx.y * blockDim.y;
+  const int idx = x + y * canvasSize.x;
+
+  Ray ray = paths.rays[idx];
+  RaycastResult result = rayCast<HitType::ANY>(ray, bvh, triangles, BIGT);
+  paths.results[idx] = result;
+
+  if (!result)
+  {
+    const int new_idx = atomicAdd(&queues.endQueueSize, 1);
+    queues.endQueue[new_idx] = idx;
     return;
+  }
 
-  curandStateType localState1 = curandStateDevXPtr[x + y * canvasSize.x];
-  curandStateType localState2 = curandStateDevYPtr[x + y * canvasSize.x];
+  const Material material = materials[traingelMaterialIds[result.triangleIdx]];
 
-  float r = curand_uniform(&localState1);
-  float g = curand_uniform(&localState2);
 
-  curandStateDevXPtr[x + y * canvasSize.x] = localState1;
-  curandStateDevYPtr[x + y * canvasSize.x] = localState2;
-
-  writeToCanvas(x, y, canvas, canvasSize, glm::fvec3(r, g, 0.f));
-
-  return;
 }
 
 void CudaRenderer::reset()
@@ -255,9 +391,9 @@ void CudaRenderer::resize(const glm::ivec2 size)
 
 CudaRenderer::CudaRenderer() : curandStateDevVecX(), curandStateDevVecY(), lastCamera(), lastSize(), currentPath(1)
 {
-  unsigned int cudaDeviceCount = 0;
+  uint32_t cudaDeviceCount = 0;
   int cudaDevices[8];
-  unsigned int cudaDevicesCount = 8;
+  uint32_t cudaDevicesCount = 8;
 
   cudaGLGetDevices(&cudaDeviceCount, cudaDevices, cudaDevicesCount, cudaGLDeviceListCurrentFrame);
 
@@ -286,11 +422,23 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   const bool diffCamera = std::memcmp(&camera, &lastCamera, sizeof(Camera));
   const bool diffSize = (canvasSize != lastSize);
 
+  const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
+  const dim3 grid( (canvasSize.x+ block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
+
   if (diffCamera != 0 || diffSize != 0)
   {
     lastCamera = camera;
     lastSize = canvasSize;
     currentPath = 1;
+    // newPath
+
+    CUDA_CHECK(cudaMalloc((void**) &paths.rays, canvasSize.x*canvasSize.y*sizeof(Ray)));
+    CUDA_CHECK(cudaMalloc((void**) &paths.pixels, canvasSize.x*canvasSize.y*sizeof(float2)));
+    CUDA_CHECK(cudaMalloc((void**) &paths.results, canvasSize.x*canvasSize.y*sizeof(RaycastResult)));
+    CUDA_CHECK(cudaMalloc((void**) &queues.extensionQueue, canvasSize.x*canvasSize.y*sizeof(uint32_t)));
+
+    newPaths<<<grid, block>>>(paths, queues, camera, canvasSize);
+    castExtensionRays<<<grid, block>>>(paths, queues, canvasSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
   }
 
   auto* curandStateDevXRaw = thrust::raw_pointer_cast(&curandStateDevVecX[0]);
@@ -299,13 +447,16 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   auto surfaceObj = canvas.getCudaMappedSurfaceObject();
   const Triangle* devTriangles = model.getDeviceTriangles();
 
-  const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
-  const dim3 grid( (canvasSize.x+ block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
-
-  pathTraceKernel<<<grid, block>>>(
+  // logic
+  // material
+  // new path
+  // extension & shadow
+  /*logicKernel<<<grid, block>>>(
       currentPath,
-      surfaceObj,
       canvasSize,
+      surfaceObj,
+      queues,
+      paths,
       devTriangles,
       camera,
       model.getDeviceMaterials(),
@@ -313,7 +464,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
       model.getDeviceLights(),
       curandStateDevXRaw,
       curandStateDevYRaw,
-      model.getDeviceBVH());
+      model.getDeviceBVH());*/
 
   ++currentPath;
 
