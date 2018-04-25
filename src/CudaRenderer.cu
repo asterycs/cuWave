@@ -11,7 +11,6 @@
 #include "Utils.hpp"
 #include "Triangle.hpp"
 
-
 #define BLOCKWIDTH 8
 #define INTERSECT_EPSILON 0.0000001f
 #define OFFSET_EPSILON 0.00001f
@@ -26,10 +25,6 @@
 
 #define LEFT_HIT_BIT 0x80000000
 #define RIGHT_HIT_BIT 0x40000000
-
-#define PATH_TRACE_BOUNCES 6
-
-const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 
 __device__ bool bboxIntersect(const AABB box, const float3 origin, const float3 inverseDirection, float& t)
 {
@@ -326,14 +321,18 @@ __global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 c
 
   if (!result)
   {
-    const int new_idx = atomicAdd(&queues.endQueueSize, 1);
+    const int new_idx = atomicAdd(queues.endQueueSize, 1);
     queues.endQueue[new_idx] = idx;
     return;
   }
 
   const Material material = materials[traingelMaterialIds[result.triangleIdx]];
 
-
+  if (material.colorDiffuse != float3_zero)
+  {
+    const int new_idx = atomicAdd(queues.diffuseQueueSize, 1);
+    queues.diffuseQueue[new_idx] = idx;
+  }
 }
 
 void CudaRenderer::reset()
@@ -430,12 +429,9 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
     lastCamera = camera;
     lastSize = canvasSize;
     currentPath = 1;
-    // newPath
 
-    CUDA_CHECK(cudaMalloc((void**) &paths.rays, canvasSize.x*canvasSize.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMalloc((void**) &paths.pixels, canvasSize.x*canvasSize.y*sizeof(float2)));
-    CUDA_CHECK(cudaMalloc((void**) &paths.results, canvasSize.x*canvasSize.y*sizeof(RaycastResult)));
-    CUDA_CHECK(cudaMalloc((void**) &queues.extensionQueue, canvasSize.x*canvasSize.y*sizeof(uint32_t)));
+    queues.resize(canvasSize);
+    paths.resize(canvasSize);
 
     newPaths<<<grid, block>>>(paths, queues, camera, canvasSize);
     castExtensionRays<<<grid, block>>>(paths, queues, canvasSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
