@@ -20,7 +20,7 @@ class Light
 {
 public:
   CUDA_HOST_DEVICE Light();
-  CUDA_HOST Light(std::vector<unsigned int> triIds);
+  CUDA_HOST Light(const uint32_t start, const uint32_t end);
   CUDA_HOST_DEVICE ~Light();
   
   CUDA_HOST_DEVICE bool isEnabled() const;
@@ -31,7 +31,8 @@ public:
   CUDA_DEVICE void sample(float& pdf, glm::vec3& point, curandState& randomState1, curandState& randomState2) const;
 private:
   glm::fvec2 size;
-  unsigned int* ids;
+  uint32_t start;
+  uint32_t end;
   bool enabled;
 };
 

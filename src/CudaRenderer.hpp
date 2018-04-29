@@ -43,7 +43,7 @@ struct Queues
 
   ~Queues()
   {
-    release();
+
   }
 
   __host__ void resize(const glm::ivec2 size)
@@ -66,9 +66,13 @@ struct Queues
   __host__ void release()
   {
     CUDA_CHECK(cudaFree((void**) &extensionQueue));
+    CUDA_CHECK(cudaFree((void**) &extensionQueueSize));
     CUDA_CHECK(cudaFree((void**) &diffuseQueue));
+    CUDA_CHECK(cudaFree((void**) &diffuseQueueSize));
     CUDA_CHECK(cudaFree((void**) &shadowQueue));
+    CUDA_CHECK(cudaFree((void**) &shadowQueueSize));
     CUDA_CHECK(cudaFree((void**) &endQueue));
+    CUDA_CHECK(cudaFree((void**) &endQueueSize));
   }
 };
 
@@ -86,7 +90,7 @@ struct Paths
 
   ~Paths()
   {
-    release();
+
   }
 
   __host__ void resize(const glm::ivec2 size)
@@ -94,7 +98,7 @@ struct Paths
     release();
 
     CUDA_CHECK(cudaMalloc((void**) &rays, size.x*size.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(float2)));
+    CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(glm::fvec2)));
     CUDA_CHECK(cudaMalloc((void**) &results, size.x*size.y*sizeof(RaycastResult)));
   }
 

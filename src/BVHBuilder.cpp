@@ -152,12 +152,22 @@ void BVHBuilder::reorderTrianglesAndMaterialIds()
 
   triangleMaterialIds = orderedTriangleMaterialIds;
 
+  std::vector<unsigned int> orderedLightTriangles(lightTriangles.size());
+
+  for (std::size_t ti = 0; ti < lightTriangles.size(); ++ti)
+  {
+    orderedLightTriangles[ti] = lightTriangles[trisWithIds[ti].second];
+  }
+
+  lightTriangles = orderedLightTriangles;
+
   return;
 }
 
-void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector<unsigned int>& triangleMaterialIds)
+void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector<unsigned int>& triangleMaterialIds, const std::vector<unsigned int>& lightTriangles)
 {
   this->triangleMaterialIds = triangleMaterialIds;
+  this->lightTriangles = lightTriangles;
   
   unsigned int idx = 0;
 
@@ -238,12 +248,12 @@ void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector
   reorderTrianglesAndMaterialIds();
 }
 
-std::vector<Node> BVHBuilder::getBVH()
+std::vector<Node> BVHBuilder::getBVH() const
 {
   return this->bvh;
 }
 
-std::vector<Triangle> BVHBuilder::getTriangles()
+std::vector<Triangle> BVHBuilder::getTriangles() const
 {
   std::vector<Triangle> triangles(trisWithIds.size());
   
@@ -253,7 +263,12 @@ std::vector<Triangle> BVHBuilder::getTriangles()
   return triangles;
 }
 
-std::vector<unsigned int> BVHBuilder::getTriangleMaterialIds()
+std::vector<unsigned int> BVHBuilder::getTriangleMaterialIds() const
 {
   return triangleMaterialIds;
+}
+
+std::vector<unsigned int> BVHBuilder::getLightTriangleIds() const
+{
+  return lightTriangles;
 }

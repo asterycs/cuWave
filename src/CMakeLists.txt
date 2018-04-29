@@ -1,13 +1,13 @@
 
 file(GLOB CXX_SRC *.cpp)
 file(GLOB CU_SRC *.cu)
-set_source_files_properties(App.cpp Model.cpp Camera.cpp Light.cpp Utils.cpp PROPERTIES LANGUAGE CUDA)
+set_source_files_properties(App.cpp Model.cpp Camera.cpp Light.cpp Utils.cpp ModelLoader.cpp PROPERTIES LANGUAGE CUDA)
 
 file(GLOB SHADERS "shaders/*/*.glsl")
 source_group("shaders" FILES SHADERS)
 
 add_executable(wavy ${CXX_SRC} ${CXX_CU_SRC} ${CU_SRC})
-add_dependencies(wavy assimp glfw cxxopts nativefiledialog)
+add_dependencies(wavy tinyobjloader glfw cxxopts nativefiledialog)
 
 target_link_libraries(wavy ${LINK_LIBS})
 add_dependencies(wavy copy_shader_files copy_benchmark_script)

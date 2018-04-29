@@ -40,29 +40,24 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
 endif(CCACHE_FOUND)
 
-# Assimp
-ExternalProject_Add(assimp
-    PREFIX "${CMAKE_BINARY_DIR}/ext/assimp"
-    GIT_REPOSITORY https://github.com/assimp/assimp.git
-    GIT_TAG "v4.1.0"
+# tinyobjloader
+ExternalProject_Add(tinyobjloader
+    PREFIX "${CMAKE_BINARY_DIR}/ext/tinyobjloader"
+    GIT_REPOSITORY https://github.com/syoyo/tinyobjloader.git
+    GIT_TAG "v1.0.6"
     GIT_PROGRESS 1
     UPDATE_DISCONNECTED 1
     LOG_DOWNLOAD 1
     LOG_BUILD 1
     LOG_INSTALL 1
-    PATCH_COMMAND git apply ${CMAKE_SOURCE_DIR}/patches/assimp_improve_obj.patch || true
     CMAKE_ARGS
-       "-DASSIMP_BUILD_TESTS=OFF"
-       "-DASSIMP_BUILD_ASSIMP_TOOLS=OFF"
-       "-DBUILD_SHARED_LIBS=OFF" # Build static
        "-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
        "-DCMAKE_BUILD_TYPE=Release"
-       "-DCMAKE_CXX_FLAGS=-fPIC" "-DCMAKE_C_FLAGS=-fPIC"
        )
 
-ExternalProject_Get_Property(assimp INSTALL_DIR)
-set(ASSIMP_INCLUDE_DIRS ${INSTALL_DIR}/include)
-set(ASSIMP_LIBRARIES "${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}assimp${CMAKE_STATIC_LIBRARY_SUFFIX};${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}IrrXML${CMAKE_STATIC_LIBRARY_SUFFIX};z;")
+ExternalProject_Get_Property(tinyobjloader INSTALL_DIR)
+set(TINYOBJLOADER_INCLUDE_DIRS ${INSTALL_DIR}/include)
+set(TINYOBJLOADER_LIBRARIES "${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}tinyobjloader${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 # Native file dialog
 ExternalProject_Add(nativefiledialog
@@ -198,7 +193,7 @@ include_directories(
     ${GLEW_INCLUDE_DIRS}
     ${GLFW_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIRS}
-    ${ASSIMP_INCLUDE_DIRS}
+    ${TINYOBJLOADER_INCLUDE_DIRS}
     ${NATIVEFILEDIALOG_INCLUDE_DIRS}
     ${GTK2_INCLUDE_DIRS}
     ${IL_INCLUDE_DIR}
@@ -220,7 +215,7 @@ set(LINK_LIBS
     ${X11_Xxf86vm_LIB}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
-    ${ASSIMP_LIBRARIES}
+    ${TINYOBJLOADER_LIBRARIES}
     ${NATIVEFILEDIALOG_LIBRARIES}
     ${GTK2_LIBRARIES}
     ${IL_LIBRARIES}

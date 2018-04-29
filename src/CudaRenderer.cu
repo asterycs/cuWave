@@ -314,6 +314,7 @@ __global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 c
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
   const int idx = x + y * canvasSize.x;
+  const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 
   Ray ray = paths.rays[idx];
   RaycastResult result = rayCast<HitType::ANY>(ray, bvh, triangles, BIGT);
@@ -409,7 +410,8 @@ CudaRenderer::CudaRenderer() : curandStateDevVecX(), curandStateDevVecY(), lastC
 
 CudaRenderer::~CudaRenderer()
 {
-
+  queues.release();
+  paths.release();
 }
 
 void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Model& model)

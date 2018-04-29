@@ -67,7 +67,7 @@ void App::MainLoop()
     glcontext.swapBuffers();
   }
 
-  if (model.getFileName() != "") // Check if model is loaded
+  if (model.getNTriangles() != 0) // Check if model is loaded
     createSceneFile(LAST_SCENEFILE_NAME);
 }
 
@@ -235,8 +235,7 @@ void App::createSceneFile(const std::string& filename)
 
 void App::loadModel(const std::string& modelFile)
 {
-  const aiScene* scene = loader.loadOBJ(modelFile);
-  model = Model(scene, modelFile);
+  model = loader.loadOBJ(modelFile);
 }
 
 void App::loadSceneFile(const std::string& filename)
