@@ -48,19 +48,19 @@ void BVHBuilder::sortTrisOnAxis(const Node& node, const unsigned int axis)
 
   if (axis == 0)
   {
-  __gnu_parallel::sort(start, end, [](const std::pair<Triangle, unsigned int>& l, const std::pair<Triangle, unsigned int>& r)
+  __gnu_parallel::sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
       {
         return l.first.center().x < r.first.center().x;
       });
   }else if (axis == 1)
   {
-    __gnu_parallel::sort(start, end, [](const std::pair<Triangle, unsigned int>& l, const std::pair<Triangle, unsigned int>& r)
+    __gnu_parallel::sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
         {
           return l.first.center().y < r.first.center().y;
         });
   }else
   {
-    __gnu_parallel::sort(start, end, [](const std::pair<Triangle, unsigned int>& l, const std::pair<Triangle, unsigned int>& r)
+    __gnu_parallel::sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
         {
           return l.first.center().z < r.first.center().z;
         });
@@ -135,36 +135,30 @@ bool BVHBuilder::splitNode(const Node& node, Node& leftChild, Node& rightChild)
 
 void BVHBuilder::reorderTrianglesAndMaterialIds()
 {
-  std::vector<unsigned int> triIdxMap;
+  std::vector<uint32_t> triIdxMap;
   triIdxMap.resize(trisWithIds.size());
 
   for (std::size_t i = 0; i < trisWithIds.size(); ++i)
-  {
     triIdxMap[trisWithIds[i].second] = i;
-  }
 
-  std::vector<unsigned int> orderedTriangleMaterialIds(triangleMaterialIds.size());
+  std::vector<uint32_t> orderedTriangleMaterialIds(triangleMaterialIds.size());
 
   for (std::size_t ti = 0; ti < trisWithIds.size(); ++ti)
-  {
     orderedTriangleMaterialIds[ti] = triangleMaterialIds[trisWithIds[ti].second];
-  }
 
   triangleMaterialIds = orderedTriangleMaterialIds;
 
-  std::vector<unsigned int> orderedLightTriangles(lightTriangles.size());
+  std::vector<uint32_t> orderedLightTriangles(lightTriangles.size());
 
   for (std::size_t ti = 0; ti < lightTriangles.size(); ++ti)
-  {
-    orderedLightTriangles[ti] = trisWithIds[ti].second;
-  }
+    orderedLightTriangles[ti] = std::find_if(trisWithIds.begin(), trisWithIds.end(), [&](const auto& x){ return lightTriangles[ti] == x.second; }) - trisWithIds.begin();
 
   lightTriangles = orderedLightTriangles;
 
   return;
 }
 
-void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector<unsigned int>& triangleMaterialIds, const std::vector<unsigned int>& lightTriangles)
+void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector<uint32_t>& triangleMaterialIds, const std::vector<uint32_t>& lightTriangles)
 {
   this->triangleMaterialIds = triangleMaterialIds;
   this->lightTriangles = lightTriangles;
@@ -257,18 +251,18 @@ std::vector<Triangle> BVHBuilder::getTriangles() const
 {
   std::vector<Triangle> triangles(trisWithIds.size());
   
-  for (unsigned int i = 0; i < trisWithIds.size(); ++i)
+  for (std::size_t i = 0; i < trisWithIds.size(); ++i)
     triangles[i] = trisWithIds[i].first;
     
   return triangles;
 }
 
-std::vector<unsigned int> BVHBuilder::getTriangleMaterialIds() const
+std::vector<uint32_t> BVHBuilder::getTriangleMaterialIds() const
 {
   return triangleMaterialIds;
 }
 
-std::vector<unsigned int> BVHBuilder::getLightTriangleIds() const
+std::vector<uint32_t> BVHBuilder::getLightTriangleIds() const
 {
   return lightTriangles;
 }

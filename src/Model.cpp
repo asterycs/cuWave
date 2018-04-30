@@ -17,15 +17,15 @@ Model::~Model()
 }
 
 
-Model::Model(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<unsigned int> triMatIds, std::vector<unsigned int> lightTriangles, const std::string& fileName) : fileName(fileName)
+Model::Model(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<uint32_t> triMatIds, std::vector<uint32_t> lightTriangles, const std::string& fileName) : fileName(fileName)
 {
   BVHBuilder bvhbuilder;
   bvhbuilder.build(triangles, triMatIds, lightTriangles);
   
   std::vector<Node> bvh = bvhbuilder.getBVH();
   std::vector<Triangle> newTriangles = bvhbuilder.getTriangles();
-  std::vector<unsigned int> newTriMatIds = bvhbuilder.getTriangleMaterialIds();
-  std::vector<unsigned int> newLightTriangles = bvhbuilder.getLightTriangleIds();
+  std::vector<uint32_t> newTriMatIds = bvhbuilder.getTriangleMaterialIds();
+  std::vector<uint32_t> newLightTriangles = bvhbuilder.getLightTriangleIds();
 
   this->triangles = newTriangles;
   this->materials = materials;
@@ -46,7 +46,7 @@ const Material* Model::getDeviceMaterials() const
   return thrust::raw_pointer_cast(&materials[0]);
 }
 
-const unsigned int* Model::getDeviceTriangleMaterialIds() const
+const uint32_t* Model::getDeviceTriangleMaterialIds() const
 {
   return thrust::raw_pointer_cast(&triangleMaterialIds[0]);
 }
@@ -71,7 +71,7 @@ unsigned int Model::getNTriangles() const
   return nTriangles;
 }
 
-const unsigned int* Model::getDeviceLights() const
+const uint32_t* Model::getDeviceLights() const
 {
   return thrust::raw_pointer_cast(&lightTriangles[0]);
 }

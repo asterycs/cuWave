@@ -243,69 +243,85 @@ __device__ glm::fvec3 readFromCanvas(const uint32_t x, const uint32_t y, const c
   return ret;
 }
 
-template <typename curandStateType>
 __global__ void
 logicKernel(
-    const uint32_t path,
     const glm::ivec2 canvasSize,
-    cudaSurfaceObject_t canvas,
-    Queues* queues,
-    Paths* paths,
-    const Triangle* triangles,
-    const Camera camera,
+    Queues queues,
+    Paths paths,
     const Material* materials,
-    const uint32_t* triangleMaterialIds,
-    const Light* lights,
-    curandStateType* curandStateDevXPtr,
-    curandStateType* curandStateDevYPtr,
-    const Node* bvh)
+    const uint32_t* triangleMaterialIds)
 {
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
+  const int idx = x + y * canvasSize.x;
+
+  const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 
   if (x >= canvasSize.x || y >= canvasSize.y)
     return;
 
-  glm::vec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(x, y, canvasSize);
+  const RaycastResult result = paths.results[idx];
 
-  Ray ray = camera.generateRay(nic, (float) canvasSize.x/canvasSize.y);
-
-  curandStateType state1 = curandStateDevXPtr[x + y * canvasSize.x];
-  curandStateType state2 = curandStateDevYPtr[x + y * canvasSize.x];
-
-  // add to material queue
-  // add to new path queue
-
-  glm::fvec3 color = glm::fvec3(0.4,0.4,0.4);
-  curandStateDevXPtr[x + y * canvasSize.x] = state1;
-  curandStateDevYPtr[x + y * canvasSize.x] = state2;
-
-  if (path == 1)
+  if (!result)
   {
-    writeToCanvas(x, y, canvas, canvasSize, color);
+    const uint32_t new_idx = atomicAdd((unsigned int*) queues.endQueueSize, 1);
+    queues.endQueue[new_idx] = idx;
+    return;
   }
-  else
+
+  const Material material = materials[triangleMaterialIds[result.triangleIdx]];
+
+  if (material.colorDiffuse != float3_zero)
   {
-    const glm::fvec3 oldCol = readFromCanvas(x, y, canvas, canvasSize);
-    const glm::fvec3 blend = oldCol * glm::fvec3((float) (path - 1) / path) + glm::fvec3((float) 1 / path) * color;
-    writeToCanvas(x, y, canvas, canvasSize, blend);
+    const uint32_t new_idx = atomicAdd(queues.diffuseQueueSize, 1);
+    queues.diffuseQueue[new_idx] = idx;
   }
+
+  /*if (material.colorSpecular != float3_zero)
+  {
+    const uint32_t new_idx = atomicAdd(queues.speqularQueueSize, 1);
+    queues.specularQueue[new_idx] = idx;
+  }*/
 
   return;
 }
 
-__global__ void newPaths(Paths paths, Queues queues, Camera camera, const glm::fvec2 canvasSize)
+__global__ void
+diffuseKernel(
+    const glm::ivec2 canvasSize,
+    Queues queues,
+    Paths paths,
+    const uint32_t* lightTriangleIds,
+    const uint32_t* triangleMaterialIds,
+    const Material* materials)
+{
+  const int x = threadIdx.x + blockIdx.x * blockDim.x;
+  const int y = threadIdx.y + blockIdx.y * blockDim.y;
+  const int idx = x + y * canvasSize.x;
+
+  const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
+  const uint32_t pathIdx = atomicSub((unsigned int*) queues.diffuseQueueSize, 1);
+
+
+
+}
+
+__global__ void newPaths(
+    Paths paths,
+    Queues queues,
+    Camera camera,
+    const glm::fvec2 canvasSize)
 {
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
 
   glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(x, y, canvasSize);
 
-  Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x/canvasSize.y));
+  Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x)/canvasSize.y);
 
   const int idx = x + y*canvasSize.x;
   paths.rays[idx] = ray;
-  paths.pixels[idx] = glm::fvec2(x, y);
+  paths.pixels[idx] = make_float2(x, y);
   queues.extensionQueue[idx] = idx;
 }
 
@@ -314,26 +330,10 @@ __global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 c
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
   const int idx = x + y * canvasSize.x;
-  const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 
   Ray ray = paths.rays[idx];
   RaycastResult result = rayCast<HitType::ANY>(ray, bvh, triangles, BIGT);
   paths.results[idx] = result;
-
-/*  if (!result)
-  {
-    const uint32_t new_idx = atomicAdd((unsigned int*) queues.endQueueSize, 1);
-    queues.endQueue[new_idx] = idx;
-    return;
-  }
-
-  const Material material = materials[traingelMaterialIds[result.triangleIdx]];
-
-  if (material.colorDiffuse != float3_zero)
-  {
-    const uint32_t new_idx = atomicAdd(queues.diffuseQueueSize, 1);
-    queues.diffuseQueue[new_idx] = idx;
-  }*/
 }
 
 void CudaRenderer::reset()
@@ -445,26 +445,22 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   auto* curandStateDevYRaw = thrust::raw_pointer_cast(&curandStateDevVecY[0]);
 
   auto surfaceObj = canvas.getCudaMappedSurfaceObject();
-  const Triangle* devTriangles = model.getDeviceTriangles();
 
-  // logic
-  // material
-  // new path
-  // extension & shadow
-  /*logicKernel<<<grid, block>>>(
-      currentPath,
+  logicKernel<<<grid, block>>>(
       canvasSize,
-      surfaceObj,
       queues,
       paths,
-      devTriangles,
-      camera,
       model.getDeviceMaterials(),
-      model.getDeviceTriangleMaterialIds(),
+      model.getDeviceTriangleMaterialIds());
+
+  diffuseKernel<<<grid, block>>>(
+      canvasSize,
+      queues,
+      paths,
       model.getDeviceLights(),
-      curandStateDevXRaw,
-      curandStateDevYRaw,
-      model.getDeviceBVH());*/
+      model.getDeviceTriangleMaterialIds(),
+      model.getDeviceMaterials()
+      );
 
   ++currentPath;
 

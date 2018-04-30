@@ -17,10 +17,10 @@ public:
   
   std::vector<Node> getBVH() const;
   std::vector<Triangle> getTriangles() const;
-  std::vector<unsigned int> getTriangleMaterialIds() const;
-  std::vector<unsigned int> getLightTriangleIds() const;
+  std::vector<uint32_t> getTriangleMaterialIds() const;
+  std::vector<uint32_t> getLightTriangleIds() const;
   
-  void build(const std::vector<Triangle>& triangles, const std::vector<unsigned int>& triangleMaterialIds, const std::vector<unsigned int>& lightTriangles);
+  void build(const std::vector<Triangle>& triangles, const std::vector<uint32_t>& triangleMaterialIds, const std::vector<uint32_t>& lightTriangles);
   AABB computeBB(const Node node);
   void sortTrisOnAxis(const Node& node, const unsigned int axis);
   bool splitNode(const Node& node, Node& leftChild, Node& rightChild);
@@ -28,10 +28,10 @@ public:
   
 private:
   std::vector<Node> bvh;
-  std::vector<std::pair<Triangle, unsigned int>> trisWithIds;
+  std::vector<std::pair<Triangle, uint32_t>> trisWithIds;
   
-  std::vector<unsigned int> lightTriangles;
-  std::vector<unsigned int> triangleMaterialIds;
+  std::vector<uint32_t> lightTriangles;
+  std::vector<uint32_t> triangleMaterialIds;
   std::vector<Material> bvhBoxMaterials;
 };
 

@@ -24,8 +24,8 @@ public:
 
   const Triangle* getDeviceTriangles() const;
   const Material* getDeviceMaterials() const;
-  const unsigned int* getDeviceTriangleMaterialIds() const;
-  const unsigned int* getDeviceLights() const;
+  const uint32_t* getDeviceTriangleMaterialIds() const;
+  const uint32_t* getDeviceLights() const;
   unsigned int getNTriangles() const;
   
   const AABB& getBbox() const;
@@ -34,8 +34,8 @@ public:
 private:
   thrust::device_vector<Triangle> triangles;
   thrust::device_vector<Material> materials;
-  thrust::device_vector<unsigned int> triangleMaterialIds;
-  thrust::device_vector<unsigned int> lightTriangles;
+  thrust::device_vector<uint32_t> triangleMaterialIds;
+  thrust::device_vector<uint32_t> lightTriangles;
 
   unsigned int nTriangles;
 

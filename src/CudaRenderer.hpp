@@ -93,9 +93,11 @@ struct Queues
 
 struct Paths
 {
-  glm::fvec2* pixels;
+  float2* pixels;
   Ray* rays;
   RaycastResult* results;
+  float3* colors;
+  float3* filters;
 
   Paths(const Paths& other) = default;
 
@@ -103,7 +105,9 @@ struct Paths
   :
     pixels(nullptr),
     rays(nullptr),
-    results(nullptr) {};
+    results(nullptr),
+    colors(nullptr),
+    filters(nullptr) {};
 
   ~Paths()
   {
@@ -115,13 +119,11 @@ struct Paths
     release();
 
     CUDA_CHECK(cudaMalloc((void**) &rays, size.x*size.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(glm::fvec2)));
+    CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(float2)));
     CUDA_CHECK(cudaMalloc((void**) &results, size.x*size.y*sizeof(RaycastResult)));
+    CUDA_CHECK(cudaMalloc((void**) &colors, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMalloc((void**) &filters, size.x*size.y*sizeof(float3)));
 
-    cudaError_t err = cudaGetLastError();
-
-    if (cudaSuccess != err)
-        throw std::runtime_error("Couldn't allocate memory");
   }
 
   __host__ void release()
@@ -129,6 +131,8 @@ struct Paths
     CUDA_CHECK(cudaFree(rays));
     CUDA_CHECK(cudaFree(pixels));
     CUDA_CHECK(cudaFree(results));
+    CUDA_CHECK(cudaFree(colors));
+    CUDA_CHECK(cudaFree(filters));
   }
 };
 
