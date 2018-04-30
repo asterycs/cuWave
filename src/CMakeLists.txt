@@ -33,3 +33,8 @@ add_custom_target(
         COMMENT "Copying benchmark script for target: wavy" VERBATIM 
         )
 
+add_custom_command(TARGET wavy
+                  COMMAND ${CMAKE_SOURCE_DIR}/patches/error_parsing_fix.sh ${CMAKE_BINARY_DIR}/.project
+                  DEPENDS ${CMAKE_BINARY_DIR}/.project
+                  COMMENT "Fixing error parsing" VERBATIM )
+
