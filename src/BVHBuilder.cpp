@@ -156,7 +156,7 @@ void BVHBuilder::reorderTrianglesAndMaterialIds()
 
   for (std::size_t ti = 0; ti < lightTriangles.size(); ++ti)
   {
-    orderedLightTriangles[ti] = lightTriangles[trisWithIds[ti].second];
+    orderedLightTriangles[ti] = trisWithIds[ti].second;
   }
 
   lightTriangles = orderedLightTriangles;

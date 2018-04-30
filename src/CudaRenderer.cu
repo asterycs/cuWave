@@ -320,9 +320,9 @@ __global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 c
   RaycastResult result = rayCast<HitType::ANY>(ray, bvh, triangles, BIGT);
   paths.results[idx] = result;
 
-  if (!result)
+/*  if (!result)
   {
-    const int new_idx = atomicAdd(queues.endQueueSize, 1);
+    const uint32_t new_idx = atomicAdd((unsigned int*) queues.endQueueSize, 1);
     queues.endQueue[new_idx] = idx;
     return;
   }
@@ -331,9 +331,9 @@ __global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 c
 
   if (material.colorDiffuse != float3_zero)
   {
-    const int new_idx = atomicAdd(queues.diffuseQueueSize, 1);
+    const uint32_t new_idx = atomicAdd(queues.diffuseQueueSize, 1);
     queues.diffuseQueue[new_idx] = idx;
-  }
+  }*/
 }
 
 void CudaRenderer::reset()
@@ -343,6 +343,9 @@ void CudaRenderer::reset()
 
 void CudaRenderer::resize(const glm::ivec2 size)
 {
+  queues.resize(size);
+  paths.resize(size);
+
   curandStateDevVecX.resize(size.x * size.y);
   curandStateDevVecY.resize(size.x * size.y);
   auto* curandStateDevXRaw = thrust::raw_pointer_cast(&curandStateDevVecX[0]);
@@ -432,8 +435,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
     lastSize = canvasSize;
     currentPath = 1;
 
-    queues.resize(canvasSize);
-    paths.resize(canvasSize);
+    queues.reset();
 
     newPaths<<<grid, block>>>(paths, queues, camera, canvasSize);
     castExtensionRays<<<grid, block>>>(paths, queues, canvasSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());

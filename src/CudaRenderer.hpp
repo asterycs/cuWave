@@ -41,6 +41,8 @@ struct Queues
     endQueue(nullptr),
     endQueueSize(nullptr) {};
 
+  Queues(const Queues& other) = default;
+
   ~Queues()
   {
 
@@ -61,18 +63,31 @@ struct Queues
 
     CUDA_CHECK(cudaMalloc((void**) &endQueue, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &endQueueSize, sizeof(uint32_t)));
+
+    cudaError_t err = cudaGetLastError();
+
+    if (cudaSuccess != err)
+        throw std::runtime_error("Couldn't allocate memory");
   }
 
   __host__ void release()
   {
-    CUDA_CHECK(cudaFree((void**) &extensionQueue));
-    CUDA_CHECK(cudaFree((void**) &extensionQueueSize));
-    CUDA_CHECK(cudaFree((void**) &diffuseQueue));
-    CUDA_CHECK(cudaFree((void**) &diffuseQueueSize));
-    CUDA_CHECK(cudaFree((void**) &shadowQueue));
-    CUDA_CHECK(cudaFree((void**) &shadowQueueSize));
-    CUDA_CHECK(cudaFree((void**) &endQueue));
-    CUDA_CHECK(cudaFree((void**) &endQueueSize));
+    CUDA_CHECK(cudaFree(extensionQueue));
+    CUDA_CHECK(cudaFree(extensionQueueSize));
+    CUDA_CHECK(cudaFree(diffuseQueue));
+    CUDA_CHECK(cudaFree(diffuseQueueSize));
+    CUDA_CHECK(cudaFree(shadowQueue));
+    CUDA_CHECK(cudaFree(shadowQueueSize));
+    CUDA_CHECK(cudaFree(endQueue));
+    CUDA_CHECK(cudaFree(endQueueSize));
+  }
+
+  __host__ void reset()
+  {
+    CUDA_CHECK(cudaMemset(extensionQueueSize, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(diffuseQueueSize, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(shadowQueueSize, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(endQueueSize, 0, sizeof(uint32_t)));
   }
 };
 
@@ -81,6 +96,8 @@ struct Paths
   glm::fvec2* pixels;
   Ray* rays;
   RaycastResult* results;
+
+  Paths(const Paths& other) = default;
 
   Paths()
   :
@@ -100,13 +117,18 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &rays, size.x*size.y*sizeof(Ray)));
     CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(glm::fvec2)));
     CUDA_CHECK(cudaMalloc((void**) &results, size.x*size.y*sizeof(RaycastResult)));
+
+    cudaError_t err = cudaGetLastError();
+
+    if (cudaSuccess != err)
+        throw std::runtime_error("Couldn't allocate memory");
   }
 
   __host__ void release()
   {
-    CUDA_CHECK(cudaFree((void**) &rays));
-    CUDA_CHECK(cudaFree((void**) &pixels));
-    CUDA_CHECK(cudaFree((void**) &results));
+    CUDA_CHECK(cudaFree(rays));
+    CUDA_CHECK(cudaFree(pixels));
+    CUDA_CHECK(cudaFree(results));
   }
 };
 

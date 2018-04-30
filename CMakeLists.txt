@@ -8,9 +8,10 @@ project(wavy LANGUAGES CXX CUDA)
 add_definitions(-DENABLE_CUDA)
 
 # Define some variables
+set(CXX_FLAGS "-Wall -Wextra -Werror -Wno-error=conversion -Wno-error=sign-compare")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/modules/)
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS}")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 include(ExternalProject)
 
@@ -20,7 +21,7 @@ find_package(CUDA REQUIRED)
 CUDA_SELECT_NVCC_ARCH_FLAGS(CUDA_ARCH_FLAGS Auto)
 list(APPEND CMAKE_CUDA_FLAGS ${CUDA_ARCH_FLAGS})
 string(REPLACE ";" " " CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}") # Phew...
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call --use_fast_math -Xptxas -v -Xptxas -dlcm=ca")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call -Xptxas -dlcm=ca  --compiler-options=\"${CXX_FLAGS}\"")
 
 
 find_package(OpenMP)
@@ -189,6 +190,7 @@ set(GLEW_INCLUDE_DIRS ${INSTALL_DIR}/include)
 set(GLEW_LIBRARIES ${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}GLEW${CMAKE_STATIC_LIBRARY_SUFFIX})
 
 include_directories(
+    SYSTEM
     ${IL_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
     ${GLFW_INCLUDE_DIRS}
