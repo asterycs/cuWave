@@ -3,8 +3,10 @@
 
 #ifdef __CUDACC__
 #define CUDA_FUNCTION __host__ __device__
+#define CUDA_DEVICE_FUNCTION __device__
 #else
 #define CUDA_FUNCTION
+#define CUDA_DEVICE_FUNCTION
 #endif
 
 #include "Utils.hpp"
@@ -32,30 +34,60 @@ struct Triangle {
 		vertices[2] = v2;
 	}
 
+  template <typename curandState>
+  CUDA_DEVICE_FUNCTION void sample(float& pdf, float3& point, curandState& randomState1, curandState& randomState2) const
+  {
+    const float x = curand_uniform(&randomState1);
+    const float y = curand_uniform(&randomState2);
+
+    const float3 e1 = vertices[1].p - vertices[0].p;
+    const float3 e2 = vertices[2].p - vertices[0].p;
+
+    pdf = 1.0f / area();
+
+    // TODO: This samples a quadrilateral. Fix it...
+
+    point = vertices[0].p + x * e1 + y * e2;
+  }
+
   CUDA_FUNCTION Triangle& operator=(const Triangle& that) = default;
 
-  CUDA_FUNCTION inline float3 min() const {
+  CUDA_FUNCTION inline float3 min() const
+  {
 		return fminf(fminf(vertices[0].p, vertices[1].p), vertices[2].p);
 	}
 
-  CUDA_FUNCTION inline float3 max() const {
+  CUDA_FUNCTION inline float3 max() const
+  {
 		return fmaxf(fmaxf(vertices[0].p, vertices[1].p), vertices[2].p);
 	}
 
-  CUDA_FUNCTION inline AABB bbox() const {
+  CUDA_FUNCTION inline AABB bbox() const
+  {
     return AABB(max(), min());
   }
 
-  CUDA_FUNCTION float3 normal() const {
+  CUDA_FUNCTION float3 normal() const
+  {
 		return normalize(cross(vertices[1].p - vertices[0].p, vertices[2].p - vertices[0].p));
 	}
 
-  CUDA_FUNCTION float3 normal(const float2& uv) const {
+  CUDA_FUNCTION float3 normal(const float2& uv) const
+  {
     return normalize((1 - uv.x - uv.y) * vertices[0].n + uv.x * vertices[1].n + uv.y * vertices[2].n);
   }
 
-  CUDA_FUNCTION float3 center() const {
+  CUDA_FUNCTION float3 center() const
+  {
     return (vertices[0].p + vertices[1].p + vertices[2].p) / 3.f;
+  }
+
+  CUDA_FUNCTION float area() const
+  {
+    const float3 e1 = vertices[1].p - vertices[0].p;
+    const float3 e2 = vertices[2].p - vertices[0].p;
+
+    return 0.5f * length(cross(e1, e2));
   }
 };
 

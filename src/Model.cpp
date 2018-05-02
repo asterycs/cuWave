@@ -66,12 +66,17 @@ const Node* Model::getDeviceBVH() const
   return thrust::raw_pointer_cast(&bvh[0]);
 }
 
-unsigned int Model::getNTriangles() const
+uint32_t Model::getNTriangles() const
 {
   return nTriangles;
 }
 
-const uint32_t* Model::getDeviceLights() const
+uint32_t Model::getNLights() const
+{
+  return lightTriangles.size();
+}
+
+const uint32_t* Model::getDeviceLightIds() const
 {
   return thrust::raw_pointer_cast(&lightTriangles[0]);
 }

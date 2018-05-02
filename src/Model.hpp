@@ -25,8 +25,9 @@ public:
   const Triangle* getDeviceTriangles() const;
   const Material* getDeviceMaterials() const;
   const uint32_t* getDeviceTriangleMaterialIds() const;
-  const uint32_t* getDeviceLights() const;
-  unsigned int getNTriangles() const;
+  const uint32_t* getDeviceLightIds() const;
+  uint32_t  getNLights() const;
+  uint32_t getNTriangles() const;
   
   const AABB& getBbox() const;
   const Node* getDeviceBVH() const;

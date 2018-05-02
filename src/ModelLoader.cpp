@@ -123,7 +123,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
   }
 
   std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
-  std::cout << "TriangleMaterialIds.size(): " << triangleMaterialIds.size() << std::endl;
+
   Model model(triangles, materials, triangleMaterialIds, lightTriangles, path);
 
   return model;

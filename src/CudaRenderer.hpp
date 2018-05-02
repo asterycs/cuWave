@@ -98,6 +98,8 @@ struct Paths
   RaycastResult* results;
   float3* colors;
   float3* filters;
+  CURAND_TYPE* xRand;
+  CURAND_TYPE* yRand;
 
   Paths(const Paths& other) = default;
 
@@ -107,7 +109,9 @@ struct Paths
     rays(nullptr),
     results(nullptr),
     colors(nullptr),
-    filters(nullptr) {};
+    filters(nullptr),
+    xRand(nullptr),
+    yRand(nullptr) {};
 
   ~Paths()
   {

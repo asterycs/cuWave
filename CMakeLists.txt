@@ -8,7 +8,7 @@ project(wavy LANGUAGES CXX CUDA)
 add_definitions(-DENABLE_CUDA)
 
 # Define some variables
-set(CXX_FLAGS "-Wall -Wextra -Werror -Wno-error=conversion -Wno-error=sign-compare")
+set(CXX_FLAGS "-Wall -Wextra -Werror -Wno-error=conversion")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/modules/)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS}")
