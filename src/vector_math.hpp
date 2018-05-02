@@ -295,7 +295,7 @@ inline __device__ __host__ float3 lerp(const float3 a, const float3 b, const flo
 
 inline __device__ __host__ bool operator!=(const float3 a, const float3 b)
 {
-  return a.x == b.x && a.y == b.y && a.z == b.z;
+  return !(a.x == b.x && a.y == b.y && a.z == b.z);
 }
 
 inline __device__ __host__ float3 clamp(const float3 v, const float a, const float b)

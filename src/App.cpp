@@ -17,7 +17,6 @@
 App::App() :
     mousePressed(false),
     mousePrevPos(glcontext.getCursorPos()),
-    activeRenderer(ActiveRenderer::GL),
     glcontext(),
 #ifdef ENABLE_CUDA
     cudaRenderer(),
@@ -25,9 +24,7 @@ App::App() :
     model(),
     glcanvas(glm::ivec2(WWIDTH, WHEIGHT)),
     camera(),
-    loader(),
-    debugMode(DebugMode::NONE),
-    debugBboxPtr(0u)
+    loader()
 {
   ilInit();
   iluInit();
@@ -63,7 +60,7 @@ void App::MainLoop()
     cudaRenderer.pathTraceToCanvas(glcanvas, camera, model);
     glcontext.draw(glcanvas);
 
-    glcontext.drawUI(activeRenderer, debugMode);
+    glcontext.drawUI();
     glcontext.swapBuffers();
   }
 

@@ -43,7 +43,6 @@ private:
 
     bool mousePressed;
     glm::dvec2 mousePrevPos;
-    ActiveRenderer activeRenderer;
 
     GLContext glcontext;
     CudaRenderer cudaRenderer;
@@ -53,9 +52,6 @@ private:
     
     Camera camera;
     ModelLoader loader;
-
-    enum DebugMode debugMode;
-    unsigned int debugBboxPtr;
 };
 
 #endif

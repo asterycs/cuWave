@@ -111,7 +111,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
 
       int32_t materialId = shapes[s].mesh.material_ids[f];
 
-      if (materialId < 0 || materialId >= materials.size())
+      if (materialId < 0 || materialId >= static_cast<int32_t>(materials.size()))
         materialId = materials.size() - 1;
 
       const Material& material = materials[materialId];
@@ -123,7 +123,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
   }
 
   std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
-
+  std::cout << "TriangleMaterialIds.size(): " << triangleMaterialIds.size() << std::endl;
   Model model(triangles, materials, triangleMaterialIds, lightTriangles, path);
 
   return model;

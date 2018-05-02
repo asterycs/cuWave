@@ -52,17 +52,17 @@ struct Queues
   {
     release();
 
-    CUDA_CHECK(cudaMalloc((void**) &extensionQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &extensionQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &extensionQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &extensionQueueSize, sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMalloc((void**) &diffuseQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &diffuseQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &diffuseQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &diffuseQueueSize, sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMalloc((void**) &shadowQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &shadowQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &shadowQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &shadowQueueSize, sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMalloc((void**) &endQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &endQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &endQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &endQueueSize, sizeof(uint32_t)));
 
     cudaError_t err = cudaGetLastError();
 
@@ -118,11 +118,11 @@ struct Paths
   {
     release();
 
-    CUDA_CHECK(cudaMalloc((void**) &rays, size.x*size.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(float2)));
-    CUDA_CHECK(cudaMalloc((void**) &results, size.x*size.y*sizeof(RaycastResult)));
-    CUDA_CHECK(cudaMalloc((void**) &colors, size.x*size.y*sizeof(float3)));
-    CUDA_CHECK(cudaMalloc((void**) &filters, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMallocManaged((void**) &rays, size.x*size.y*sizeof(Ray)));
+    CUDA_CHECK(cudaMallocManaged((void**) &pixels, size.x*size.y*sizeof(float2)));
+    CUDA_CHECK(cudaMallocManaged((void**) &results, size.x*size.y*sizeof(RaycastResult)));
+    CUDA_CHECK(cudaMallocManaged((void**) &colors, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMallocManaged((void**) &filters, size.x*size.y*sizeof(float3)));
 
   }
 

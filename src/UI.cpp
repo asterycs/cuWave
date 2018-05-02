@@ -25,7 +25,7 @@ UI::~UI()
 
 }
 
-void UI::draw(const enum ActiveRenderer activeRenderer, const enum DebugMode debugMode)
+void UI::draw()
 {
   ImGui_ImplGlfwGL3_NewFrame();
 
@@ -38,40 +38,6 @@ void UI::draw(const enum ActiveRenderer activeRenderer, const enum DebugMode deb
   if (ImGui::Begin("Info", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
   {
       ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
-      switch (activeRenderer)
-      {
-        case GL:
-          ImGui::Text("Renderer (enter): OpenGL");
-          break;
-
-#ifdef ENABLE_CUDA
-        case RAYTRACER:
-          ImGui::Text("Renderer (enter): Raytracer");
-          break;
-
-        case PATHTRACER:
-          ImGui::Text("Renderer (enter): Pathtracer");
-          break;
-#endif
-
-        default:
-          break;
-      }
-
-      switch (debugMode)
-      {
-        case DEBUG_RAYTRACE:
-          ImGui::Text("Debug (ctrl + D): Raytrace");
-          break;
-        case DEBUG_PATHTRACE:
-          ImGui::Text("Debug (ctrl + D): Pathtrace");
-          break;
-
-        default:
-          ImGui::Text("Debug (ctrl + D): None");
-          break;
-      }
 
       ImGui::Text("Open model: O");
       ImGui::Text("Open scene file: Ctrl+O");

@@ -138,9 +138,9 @@ float GLContext::getTime() const
   return (float) glfwGetTime();
 }
 
-void GLContext::drawUI(const enum ActiveRenderer activeRenderer, const enum DebugMode debugMode)
+void GLContext::drawUI()
 {
-  ui.draw(activeRenderer, debugMode);
+  ui.draw();
 }
 
 bool GLContext::UiWantsMouseInput()

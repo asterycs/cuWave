@@ -28,7 +28,7 @@ public:
   void draw(const std::vector<glm::fvec3>& points, const Camera& camera);
   void draw(const AABB& box, const Camera& camera);
 
-  void drawUI(const enum ActiveRenderer activeRenderer, const enum DebugMode debugMode);
+  void drawUI();
   bool UiWantsMouseInput();
   void resize(const glm::ivec2& newSize);
   bool shadersLoaded() const;

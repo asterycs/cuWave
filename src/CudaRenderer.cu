@@ -226,7 +226,7 @@ __global__ void initRand(curandDirectionVectors64_t* sobolDirectionVectors, unsi
   state[x + size.x * y] = localState;
 }
 
-__device__ void writeToCanvas(const uint32_t x, const uint32_t y, const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize, const glm::vec3 data)
+__device__ void writeToCanvas(const uint32_t x, const uint32_t y, const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize, const float3 data)
 {
   const float4 out = make_float4(data.x, data.y, data.z, 1.f);
   surf2Dwrite(out, surfaceObj, (canvasSize.x - 1 - x) * sizeof(out), y);
@@ -264,7 +264,7 @@ logicKernel(
 
   if (!result)
   {
-    const uint32_t new_idx = atomicAdd((unsigned int*) queues.endQueueSize, 1);
+    const uint32_t new_idx = atomicAdd(queues.endQueueSize, 1);
     queues.endQueue[new_idx] = idx;
     return;
   }
@@ -287,6 +287,24 @@ logicKernel(
 }
 
 __global__ void
+writeToCanvas(
+    const glm::ivec2 canvasSize,
+    cudaSurfaceObject_t canvas,
+    Paths paths
+    )
+{
+  const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  const int idx = x + y * canvasSize.x;
+
+  if (x >= canvasSize.x || y >= canvasSize.y)
+    return;
+
+  const float3 data = paths.colors[idx];
+  writeToCanvas(x, y, canvas, canvasSize, data);
+}
+
+__global__ void
 diffuseKernel(
     const glm::ivec2 canvasSize,
     Queues queues,
@@ -295,15 +313,45 @@ diffuseKernel(
     const uint32_t* triangleMaterialIds,
     const Material* materials)
 {
-  const int x = threadIdx.x + blockIdx.x * blockDim.x;
-  const int y = threadIdx.y + blockIdx.y * blockDim.y;
-  const int idx = x + y * canvasSize.x;
+  const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  const uint32_t idx = x + y * canvasSize.x;
+
+  if (idx >= *queues.diffuseQueueSize)
+    return;
 
   const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
-  const uint32_t pathIdx = atomicSub((unsigned int*) queues.diffuseQueueSize, 1);
+  const uint32_t pathIdxIdx = atomicSub(queues.diffuseQueueSize, 1);
+  const uint32_t pathIdx = queues.diffuseQueue[pathIdxIdx];
 
+  const RaycastResult result = paths.results[pathIdx];
+  const uint32_t mIdx = triangleMaterialIds[result.triangleIdx];
+  const Material& material = materials[mIdx];
 
+  const float3 filteredColor = paths.filters[pathIdx] * material.colorDiffuse;
+  paths.colors[pathIdx] += filteredColor;
 
+}
+
+__global__ void
+endKernel(
+    const glm::ivec2 canvasSize,
+    Queues queues,
+    Paths paths
+    )
+{
+  const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  const uint32_t idx = x + y * canvasSize.x;
+
+  if (idx >= *queues.endQueueSize)
+    return;
+
+  const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
+  const uint32_t pathIdxIdx = atomicSub((unsigned int*) queues.endQueueSize, 1);
+  const uint32_t pathIdx = queues.endQueue[pathIdxIdx];
+
+  paths.colors[pathIdx] = make_float3(0.f, 0.f, 0.f);
 }
 
 __global__ void newPaths(
@@ -323,6 +371,8 @@ __global__ void newPaths(
   paths.rays[idx] = ray;
   paths.pixels[idx] = make_float2(x, y);
   queues.extensionQueue[idx] = idx;
+  paths.colors[idx] = make_float3(0.f, 0.f, 0.f);
+  paths.filters[idx] = make_float3(1.f, 1.f, 1.f);
 }
 
 __global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 canvasSize, const Triangle* triangles, const Node* bvh, const Material* materials, const unsigned int* traingelMaterialIds)
@@ -427,7 +477,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   const bool diffSize = (canvasSize != lastSize);
 
   const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
-  const dim3 grid( (canvasSize.x+ block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
+  const dim3 grid( (canvasSize.x + block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
 
   if (diffCamera != 0 || diffSize != 0)
   {
@@ -453,6 +503,10 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
       model.getDeviceMaterials(),
       model.getDeviceTriangleMaterialIds());
 
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  std::cout << *queues.diffuseQueueSize << std::endl;
+
   diffuseKernel<<<grid, block>>>(
       canvasSize,
       queues,
@@ -462,7 +516,28 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
       model.getDeviceMaterials()
       );
 
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  std::cout << *queues.diffuseQueueSize << std::endl;
+
+  /*endKernel<<<grid, block>>>(
+      canvasSize,
+      queues,
+      paths
+      );
+
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  writeToCanvas<<<grid, block>>>(
+      canvasSize,
+      surfaceObj,
+      paths
+      );*/
+
   ++currentPath;
+
+  if (currentPath == 10)
+    exit(0);
 
   CUDA_CHECK(cudaDeviceSynchronize());
   canvas.cudaUnmap();
