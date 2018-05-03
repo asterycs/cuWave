@@ -43,17 +43,14 @@ class Model;
   #define IL_CHECK(call) call
 #endif
 
-#ifdef ENABLE_CUDA
-  #ifndef NDEBUG
-    #define CUDA_CHECK(call) do { \
-            call;\
-            CheckCudaError(#call, __FILE__, __LINE__); \
-        } while (0)
-  #else
-    #define CUDA_CHECK(call) call
-  #endif
+
+#ifndef NDEBUG
+  #define CUDA_CHECK(call) do { \
+          call;\
+          CheckCudaError(#call, __FILE__, __LINE__); \
+      } while (0)
 #else
-  #define CUDA_CHECK(call)
+  #define CUDA_CHECK(call) call
 #endif
 
 void CheckCudaError(const char* stmt, const char* fname, int line);

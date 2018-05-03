@@ -8,7 +8,7 @@
 #include "Light.hpp"
 #include "Model.hpp"
 
-#define QUASIRANDOM
+//#define QUASIRANDOM
 
 #ifdef QUASIRANDOM
 #define CURAND_TYPE curandStateScrambledSobol64
@@ -24,11 +24,11 @@ struct Queues
   uint32_t* diffuseQueue;
   uint32_t* diffuseQueueSize;
 
+  uint32_t* specularQueue;
+  uint32_t* specularQueueSize;
+
   uint32_t* shadowQueue;
   uint32_t* shadowQueueSize;
-
-  uint32_t* endQueue;
-  uint32_t* endQueueSize;
 
   Queues()
   :
@@ -36,10 +36,10 @@ struct Queues
     extensionQueueSize(nullptr),
     diffuseQueue(nullptr),
     diffuseQueueSize(nullptr),
+    specularQueue(nullptr),
+    specularQueueSize(nullptr),
     shadowQueue(nullptr),
-    shadowQueueSize(nullptr),
-    endQueue(nullptr),
-    endQueueSize(nullptr) {};
+    shadowQueueSize(nullptr) {};
 
   Queues(const Queues& other) = default;
 
@@ -58,11 +58,11 @@ struct Queues
     CUDA_CHECK(cudaMallocManaged((void**) &diffuseQueue, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMallocManaged((void**) &diffuseQueueSize, sizeof(uint32_t)));
 
+    CUDA_CHECK(cudaMallocManaged((void**) &specularQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &specularQueueSize, sizeof(uint32_t)));
+
     CUDA_CHECK(cudaMallocManaged((void**) &shadowQueue, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMallocManaged((void**) &shadowQueueSize, sizeof(uint32_t)));
-
-    CUDA_CHECK(cudaMallocManaged((void**) &endQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMallocManaged((void**) &endQueueSize, sizeof(uint32_t)));
 
     cudaError_t err = cudaGetLastError();
 
@@ -76,18 +76,18 @@ struct Queues
     CUDA_CHECK(cudaFree(extensionQueueSize));
     CUDA_CHECK(cudaFree(diffuseQueue));
     CUDA_CHECK(cudaFree(diffuseQueueSize));
+    CUDA_CHECK(cudaFree(specularQueue));
+    CUDA_CHECK(cudaFree(specularQueueSize));
     CUDA_CHECK(cudaFree(shadowQueue));
     CUDA_CHECK(cudaFree(shadowQueueSize));
-    CUDA_CHECK(cudaFree(endQueue));
-    CUDA_CHECK(cudaFree(endQueueSize));
   }
 
   __host__ void reset()
   {
     CUDA_CHECK(cudaMemset(extensionQueueSize, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(diffuseQueueSize, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(specularQueueSize, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(shadowQueueSize, 0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(endQueueSize, 0, sizeof(uint32_t)));
   }
 };
 
@@ -98,8 +98,8 @@ struct Paths
   RaycastResult* results;
   float3* colors;
   float3* filters;
-  CURAND_TYPE* xRand;
-  CURAND_TYPE* yRand;
+  CURAND_TYPE* random0;
+  CURAND_TYPE* random1;
 
   Paths(const Paths& other) = default;
 
@@ -110,8 +110,8 @@ struct Paths
     results(nullptr),
     colors(nullptr),
     filters(nullptr),
-    xRand(nullptr),
-    yRand(nullptr) {};
+    random0(nullptr),
+    random1(nullptr) {};
 
   ~Paths()
   {
@@ -127,7 +127,8 @@ struct Paths
     CUDA_CHECK(cudaMallocManaged((void**) &results, size.x*size.y*sizeof(RaycastResult)));
     CUDA_CHECK(cudaMallocManaged((void**) &colors, size.x*size.y*sizeof(float3)));
     CUDA_CHECK(cudaMallocManaged((void**) &filters, size.x*size.y*sizeof(float3)));
-
+    CUDA_CHECK(cudaMallocManaged((void**) &random0, size.x*size.y*sizeof(CURAND_TYPE)));
+    CUDA_CHECK(cudaMallocManaged((void**) &random1, size.x*size.y*sizeof(CURAND_TYPE)));
   }
 
   __host__ void release()
@@ -137,6 +138,8 @@ struct Paths
     CUDA_CHECK(cudaFree(results));
     CUDA_CHECK(cudaFree(colors));
     CUDA_CHECK(cudaFree(filters));
+    CUDA_CHECK(cudaFree(random0));
+    CUDA_CHECK(cudaFree(random1));
   }
 };
 
@@ -151,9 +154,6 @@ public:
   void reset();
 
 private:
-  thrust::device_vector<CURAND_TYPE> curandStateDevVecX;
-  thrust::device_vector<CURAND_TYPE> curandStateDevVecY;
-
   Camera lastCamera;
   glm::ivec2 lastSize;
   uint32_t currentPath;
