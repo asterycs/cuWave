@@ -40,12 +40,9 @@ struct Triangle {
     const float x = curand_uniform(&randomState1);
     const float y = curand_uniform(&randomState2);
 
-    const float3 e1 = vertices[1].p - vertices[0].p;
-    const float3 e2 = vertices[2].p - vertices[0].p;
-
     pdf = 1.0f / area();
 
-    point = vertices[0].p + sqrtf(x) * e1 + sqrtf(y) * e2;
+    point = (1.f-sqrt(x))*vertices[0].p + (sqrtf(x)*(1-y))*vertices[1].p + (y*sqrtf(x))*vertices[2].p;
   }
 
   CUDA_FUNCTION Triangle& operator=(const Triangle& that) = default;
