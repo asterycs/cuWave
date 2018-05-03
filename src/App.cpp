@@ -224,6 +224,7 @@ void App::createSceneFile(const std::string& filename)
 
   std::string modelName = model.getFileName();
   sceneFile << modelName << std::endl;
+  sceneFile << camera << std::endl;
 
   sceneFile.close();
 

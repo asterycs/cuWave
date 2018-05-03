@@ -7,6 +7,7 @@
 #include <cuda_gl_interop.h>
 #include <curand.h>
 #include <curand_kernel.h>
+#include <math_constants.h>
 
 #include "Utils.hpp"
 #include "Triangle.hpp"
@@ -310,7 +311,8 @@ diffuseKernel(
     const uint32_t* lightTriangleIds,
     const uint32_t  lightTriangles,
     const uint32_t* triangleMaterialIds,
-    const Material* materials)
+    const Material* materials,
+    const Node* bvh)
 {
   const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
   const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -323,19 +325,17 @@ diffuseKernel(
   const uint32_t pathIdx = queues.diffuseQueue[idx];
 
   const RaycastResult result = paths.results[pathIdx];
-  const uint32_t mIdx = triangleMaterialIds[result.triangleIdx];
-  const Material& material = materials[mIdx];
-
-  const float3 filteredColor = paths.filters[pathIdx] * material.colorAmbient;
-  paths.colors[pathIdx] += filteredColor;
+  const Material& material = materials[triangleMaterialIds[result.triangleIdx]];
 
   const Triangle triangle = triangles[result.triangleIdx];
-  float3 interpolatedNormal = triangle.normal(result.uv);
+  float3 hitNormal = triangle.normal();
 
   CURAND_TYPE randomState1 = paths.xRand[pathIdx];
   CURAND_TYPE randomState2 = paths.yRand[pathIdx];
 
-  const float3 shadowRayOrigin = result.point + interpolatedNormal * OFFSET_EPSILON;
+  const float3 shadowRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
+
+  float3 brightness = make_float3(0.f, 0.f, 0.f);
 
   for (uint32_t i = 0; i < lightTriangles; ++i)
   {
@@ -343,24 +343,33 @@ diffuseKernel(
     float3 shadowPoint;
     triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, randomState1, randomState2);
 
-    const float3 shadowRay = shadowPoint - shadowRayOrigin;
-    const Ray ray(shadowRayOrigin, normalize(shadowRay));
+    const float3 shadowRayDirection = shadowPoint - shadowRayOrigin;
+    const Ray shadowRay(shadowRayOrigin, normalize(shadowRayDirection));
+    const float shadowRayLength = length(shadowRayDirection);
 
-    const uint32_t shadowIdx = atomicAdd(queues.shadowQueueSize, 1);
+    const Triangle lightTriangle = triangles[lightTriangleIds[i]];
+    const Material lightTriangleMaterial = materials[triangleMaterialIds[lightTriangleIds[i]]];
+    const float3 lightEmission = lightTriangleMaterial.colorEmission;
 
-    /*queues.shadowQueue[shadowIdx] = pathIdx;
-    paths.rays[pathIdx] = ray;
+    RaycastResult shadowResult = rayCast<HitType::CLOSEST>(shadowRay, bvh, triangles, shadowRayLength);
 
-    paths.rays[idx] = ray;
-    paths.pixels[idx] = make_float2(x, y);
-    queues.extensionQueue[idx] = idx;
-    paths.colors[idx] = make_float3(0.f, 0.f, 0.f);
-    paths.filters[idx] = make_float3(1.f, 1.f, 1.f);*/
+    if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
+    {
+      const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
+      const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
+
+      brightness += __fdividef(1.f, (shadowRayLength * shadowRayLength * pdf)) * lightEmission * cosL * cosOmega;
+    }
   }
 
   paths.xRand[pathIdx] = randomState1;
   paths.yRand[pathIdx] = randomState2;
 
+  const float3 filteredAmbient = paths.filters[pathIdx] * material.colorAmbient;
+  const float3 filteredDiffuse = paths.filters[pathIdx] * material.colorDiffuse;
+  const float3 fiteredEmission = paths.filters[pathIdx] * material.colorEmission;
+
+  paths.colors[pathIdx] += fiteredEmission + filteredAmbient + brightness * filteredDiffuse / CUDART_PI_F;
 }
 
 __global__ void
@@ -410,7 +419,7 @@ __global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 c
   const int idx = x + y * canvasSize.x;
 
   Ray ray = paths.rays[idx];
-  RaycastResult result = rayCast<HitType::ANY>(ray, bvh, triangles, BIGT);
+  RaycastResult result = rayCast<HitType::CLOSEST>(ray, bvh, triangles, BIGT);
   paths.results[idx] = result;
 }
 
@@ -541,7 +550,8 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
       model.getDeviceLightIds(),
       model.getNLights(),
       model.getDeviceTriangleMaterialIds(),
-      model.getDeviceMaterials()
+      model.getDeviceMaterials(),
+      model.getDeviceBVH()
       );
 
   CUDA_CHECK(cudaDeviceSynchronize());

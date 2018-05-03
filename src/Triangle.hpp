@@ -45,9 +45,7 @@ struct Triangle {
 
     pdf = 1.0f / area();
 
-    // TODO: This samples a quadrilateral. Fix it...
-
-    point = vertices[0].p + x * e1 + y * e2;
+    point = vertices[0].p + sqrtf(x) * e1 + sqrtf(y) * e2;
   }
 
   CUDA_FUNCTION Triangle& operator=(const Triangle& that) = default;
