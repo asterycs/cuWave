@@ -93,11 +93,14 @@ struct Queues
 
 struct Paths
 {
-  float2* pixels;
+  uint32_t* pathCount;
   Ray* rays;
+  uint2* pixels;
   RaycastResult* results;
   float3* colors;
-  float3* filters;
+  float3* throughputs;
+  float* p;
+
   CURAND_TYPE* random0;
   CURAND_TYPE* random1;
 
@@ -105,11 +108,14 @@ struct Paths
 
   Paths()
   :
-    pixels(nullptr),
+    pathCount(nullptr),
     rays(nullptr),
+    pixels(nullptr),
     results(nullptr),
     colors(nullptr),
-    filters(nullptr),
+    throughputs(nullptr),
+    p(nullptr),
+
     random0(nullptr),
     random1(nullptr) {};
 
@@ -122,22 +128,28 @@ struct Paths
   {
     release();
 
-    CUDA_CHECK(cudaMallocManaged((void**) &rays, size.x*size.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMallocManaged((void**) &pixels, size.x*size.y*sizeof(float2)));
-    CUDA_CHECK(cudaMallocManaged((void**) &results, size.x*size.y*sizeof(RaycastResult)));
-    CUDA_CHECK(cudaMallocManaged((void**) &colors, size.x*size.y*sizeof(float3)));
-    CUDA_CHECK(cudaMallocManaged((void**) &filters, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMallocManaged((void**) &pathCount, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMallocManaged((void**) &rays, 2*size.x*size.y*sizeof(Ray)));
+    CUDA_CHECK(cudaMallocManaged((void**) &pixels, 2*size.x*size.y*sizeof(uint2)));
+    CUDA_CHECK(cudaMallocManaged((void**) &results, 2*size.x*size.y*sizeof(RaycastResult)));
+    CUDA_CHECK(cudaMallocManaged((void**) &colors, 2*size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMallocManaged((void**) &throughputs, 2*size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMallocManaged((void**) &p, 2*size.x*size.y*sizeof(float)));
+
     CUDA_CHECK(cudaMallocManaged((void**) &random0, size.x*size.y*sizeof(CURAND_TYPE)));
     CUDA_CHECK(cudaMallocManaged((void**) &random1, size.x*size.y*sizeof(CURAND_TYPE)));
   }
 
   __host__ void release()
   {
+    CUDA_CHECK(cudaFree(pathCount));
     CUDA_CHECK(cudaFree(rays));
     CUDA_CHECK(cudaFree(pixels));
     CUDA_CHECK(cudaFree(results));
     CUDA_CHECK(cudaFree(colors));
-    CUDA_CHECK(cudaFree(filters));
+    CUDA_CHECK(cudaFree(throughputs));
+    CUDA_CHECK(cudaFree(p));
+
     CUDA_CHECK(cudaFree(random0));
     CUDA_CHECK(cudaFree(random1));
   }

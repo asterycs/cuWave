@@ -33,10 +33,10 @@ GLContext::GLContext() :
   glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
   glfwWindowHint(GLFW_SAMPLES, 8);
 
-  window = glfwCreateWindow(size.x, size.y, "GRAPHX", nullptr, nullptr);
-  if (window == nullptr) {
-      throw std::runtime_error("Failed to create GLFW window");
-  }
+  window = glfwCreateWindow(size.x, size.y, "cuWave", nullptr, nullptr);
+  if (window == nullptr)
+    throw std::runtime_error("Failed to create GLFW window");
+
   GL_CHECK(glfwMakeContextCurrent(window));
 
   glewExperimental = GL_TRUE;

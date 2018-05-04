@@ -255,17 +255,13 @@ logicKernel(
 
   const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 
-  if (x >= canvasSize.x || y >= canvasSize.y)
+  if (idx >= *paths.pathCount)
     return;
-
-  paths.colors[idx] = float3_zero;
 
   const RaycastResult result = paths.results[idx];
 
   if (!result)
-  {
     return;
-  }
 
   const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 
@@ -296,14 +292,64 @@ writeToCanvas(
   const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
   const int idx = x + y * canvasSize.x;
 
-  if (x >= canvasSize.x || y >= canvasSize.y)
+  if (idx >= *paths.pathCount)
     return;
 
   const float3 newColor = paths.colors[idx];
-  float3 oldColor = readFromCanvas(x, y, canvas, canvasSize);
+  const uint2 pixel = paths.pixels[idx];
+  float3 oldColor = readFromCanvas(pixel.x, pixel.y, canvas, canvasSize);
   float3 blend = static_cast<float>(currentPath-1)/currentPath * oldColor + 1.f/currentPath * newColor;
 
-  writeToCanvas(x, y, canvas, canvasSize, blend);
+  writeToCanvas(pixel.x, pixel.y, canvas, canvasSize, blend);
+}
+
+typedef struct {
+  float3 col[3];
+} float33;
+
+__device__
+inline void setZero(float33& m)
+{
+  m.col[0] = make_float3(0.0f, 0.0f, 0.0f);
+  m.col[1] = make_float3(0.0f, 0.0f, 0.0f);
+  m.col[2] = make_float3(0.0f, 0.0f, 0.0f);
+}
+
+__device__
+inline float3 operator*(const float33 m, const float3 v)
+{
+  float3 res;
+  res.x = m.col[0].x * v.x + m.col[1].x * v.y + m.col[2].x * v.z;
+  res.y = m.col[0].y * v.x + m.col[1].y * v.y + m.col[2].y * v.z;
+  res.z = m.col[0].z * v.x + m.col[1].z * v.y + m.col[2].z * v.z;
+
+  return res;
+}
+
+
+__device__ float33 getBasis(const float3 n) {
+
+  float33 R;
+
+  float3 Q = n;
+  const float3 absq = abs(Q);
+  float absqmin = fmin(absq);
+
+  if (absq.x == absqmin)
+    Q.x = 1;
+  else if (absq.y == absqmin)
+    Q.y = 1;
+  else
+    Q.z = 1;
+
+  float3 T = normalize(cross(Q, n));
+  float3 B = normalize(cross(n, T));
+
+  R.col[0] = T;
+  R.col[1] = B;
+  R.col[2] = n;
+
+  return R;
 }
 
 __global__ void
@@ -334,8 +380,8 @@ diffuseKernel(
   const Triangle triangle = triangles[result.triangleIdx];
   float3 hitNormal = triangle.normal();
 
-  CURAND_TYPE randomState1 = paths.random0[pathIdx];
-  CURAND_TYPE randomState2 = paths.random1[pathIdx];
+  CURAND_TYPE randomState1 = paths.random0[idx];
+  CURAND_TYPE randomState2 = paths.random1[idx];
 
   const float3 shadowRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
 
@@ -366,14 +412,38 @@ diffuseKernel(
     }
   }
 
-  paths.random0[pathIdx] = randomState1;
-  paths.random1[pathIdx] = randomState2;
-
-  const float3 filteredAmbient = paths.filters[pathIdx] * material.colorAmbient;
-  const float3 filteredDiffuse = paths.filters[pathIdx] * material.colorDiffuse;
-  const float3 fiteredEmission = paths.filters[pathIdx] * material.colorEmission;
+  const float3 filteredAmbient = paths.throughputs[pathIdx] * material.colorAmbient;
+  const float3 filteredDiffuse = paths.throughputs[pathIdx] * material.colorDiffuse;
+  const float3 fiteredEmission = paths.throughputs[pathIdx] * material.colorEmission;
 
   paths.colors[pathIdx] += fiteredEmission + filteredAmbient + brightness * filteredDiffuse / CUDART_PI_F;
+
+  float33 B = getBasis(hitNormal);
+  float3 extensionDir;
+
+  do {
+    extensionDir = make_float3(curand_uniform(&randomState1) * 2.0f - 1.0f, curand_uniform(&randomState2) * 2.0f - 1.0f, 0.f);
+  } while ((extensionDir.x * extensionDir.x + extensionDir.y * extensionDir.y) >= 1);
+
+  extensionDir.z = sqrt(1 - extensionDir.x * extensionDir.x - extensionDir.y * extensionDir.y);
+  extensionDir = B * extensionDir;
+  extensionDir = normalize(extensionDir); // Unnecessary
+  const float3 extensionOrig = result.point + OFFSET_EPSILON * hitNormal;
+  const Ray extensionRay(extensionOrig, extensionDir);
+
+  float cosO = dot(extensionDir, hitNormal);
+  float p = cosO * dot(extensionDir, hitNormal) * (1.f / CUDART_PI_F);
+  float3 throughput = material.colorDiffuse / CUDART_PI_F * dot(extensionDir, hitNormal);
+
+  paths.rays[pathIdx] = extensionRay;
+  paths.throughputs[pathIdx] = paths.throughputs[pathIdx] * throughput;
+  paths.p[pathIdx] *= p;
+
+  //const uint32_t extensionIdx = atomicAdd(queues.extensionQueueSize, 1);
+  //queues.extensionQueue[extensionIdx] = pathIdx;
+
+  paths.random0[idx] = randomState1;
+  paths.random1[idx] = randomState2;
 }
 
 inline __device__ float3 reflectionDirection(const float3 normal, const float3 incomingDirection) {
@@ -383,7 +453,7 @@ inline __device__ float3 reflectionDirection(const float3 normal, const float3 i
   return incomingDirection - 2 * cosT * normal;
 }
 
-__global__ void
+/*__global__ void
 specularKernel(
     const glm::ivec2 canvasSize,
     const Queues queues,
@@ -404,64 +474,69 @@ specularKernel(
 
   const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
   const uint32_t pathIdx = queues.specularQueue[idx];
+  const uint2 currentPixel = paths.secondaryPixels[pathIdx];
+  const uint32_t primaryIdx = currentPixel.x + currentPixel.y * canvasSize.x;
 
-  const Ray hitRay = paths.rays[pathIdx];
-  const RaycastResult result = paths.results[pathIdx];
-  const Material material = materials[triangleMaterialIds[result.triangleIdx]];
+  const Ray hitRay = paths.primaryRays[primaryIdx];
+  const RaycastResult hitResult = paths.primaryResults[primaryIdx];
 
-  const Triangle triangle = triangles[result.triangleIdx];
-  float3 hitNormal = triangle.normal(result.uv);
+  const Triangle triangle = triangles[hitResult.triangleIdx];
+  float3 hitNormal = triangle.normal();
 
-  const float3 reflectionRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
+  const float3 reflectionRayOrigin = hitResult.point + hitNormal * OFFSET_EPSILON;
   const float3 reflectionRayDir = reflectionDirection(hitNormal, hitRay.direction);
 
   const Ray reflectionRay(reflectionRayOrigin, reflectionRayDir);
-  RaycastResult reflectionResult = rayCast<HitType::CLOSEST>(reflectionRay, bvh, triangles, BIGT);
 
-  float3 reflectionHitColor = make_float3(0.f, 0.f, 0.f);
-
-  if (reflectionResult)
-    reflectionHitColor = materials[triangleMaterialIds[reflectionResult.triangleIdx]].colorAmbient;
-
-  const float3 filteredSpecular = material.colorSpecular * reflectionHitColor;
-
-  paths.colors[pathIdx] += filteredSpecular;
-}
+  const uint32_t newRayIdx = atomicAdd(paths.secondaryPathCount, 1);
+  paths.secondaryRays[newRayIdx] = reflectionRay;
+  paths.secondaryPixels[newRayIdx] = currentPixel;
+  paths.secondaryFilters[newRayIdx] = paths.primaryFilters[primaryIdx];
+}*/
 
 __global__ void newPaths(
     Paths paths,
-    Queues queues,
+    uint32_t* queue,
     Camera camera,
     const glm::fvec2 canvasSize)
 {
   const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
   const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  const int idx = x + y*canvasSize.x;
+
+  if (idx >= canvasSize.x * canvasSize.y)
+    return;
 
   const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(x, y, canvasSize);
   const Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x)/canvasSize.y);
 
-  const int idx = x + y*canvasSize.x;
   paths.rays[idx] = ray;
-  paths.pixels[idx] = make_float2(x, y);
-  queues.extensionQueue[idx] = idx;
+  queue[idx] = idx;
   paths.colors[idx] = make_float3(0.f, 0.f, 0.f);
-  paths.filters[idx] = make_float3(1.f, 1.f, 1.f);
+  paths.throughputs[idx] = make_float3(1.f, 1.f, 1.f);
+  paths.pixels[idx] = make_uint2(x, y);
+  paths.p[idx] = 1.f;
 }
 
-__global__ void castExtensionRays(Paths paths, Queues queues, const glm::fvec2 canvasSize, const Triangle* triangles, const Node* bvh, const Material* materials, const unsigned int* traingelMaterialIds)
+__global__ void castRays(Paths paths, uint32_t* queue, const glm::ivec2 canvasSize, uint32_t* queueSize, const Triangle* triangles, const Node* bvh, const Material* materials, const unsigned int* traingelMaterialIds)
 {
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
   const int idx = x + y * canvasSize.x;
+return;
+  if (idx >= *queueSize)
+    return;
 
-  Ray ray = paths.rays[idx];
+  const uint32_t pathIdx = queue[idx];
+  const Ray ray = paths.rays[pathIdx];
   RaycastResult result = rayCast<HitType::CLOSEST>(ray, bvh, triangles, BIGT);
-  paths.results[idx] = result;
+  paths.results[pathIdx] = result;
 }
 
 void CudaRenderer::reset()
 {
   currentPath = 1;
+  queues.reset();
 }
 
 void CudaRenderer::resize(const glm::ivec2 size)
@@ -551,15 +626,16 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   {
     lastCamera = camera;
     lastSize = canvasSize;
-    currentPath = 1;
+    reset();
 
-    queues.reset();
-
-    newPaths<<<grid, block>>>(paths, queues, camera, canvasSize);
-    castExtensionRays<<<grid, block>>>(paths, queues, canvasSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
+    newPaths<<<grid, block>>>(paths, queues.extensionQueue, camera, canvasSize);
+    *paths.pathCount = canvasSize.x * canvasSize.y;
   }
 
   auto surfaceObj = canvas.getCudaMappedSurfaceObject();
+
+  castRays<<<grid, block>>>(paths, queues.extensionQueue, canvasSize, queues.extensionQueueSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
+  *queues.extensionQueueSize = 0;
 
   logicKernel<<<grid, block>>>(
       canvasSize,
@@ -585,7 +661,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   CUDA_CHECK(cudaDeviceSynchronize());
   *queues.diffuseQueueSize = 0;
 
-  specularKernel<<<grid, block>>>(
+  /*specularKernel<<<grid, block>>>(
       canvasSize,
       queues,
       paths,
@@ -598,7 +674,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
       );
 
   CUDA_CHECK(cudaDeviceSynchronize());
-  *queues.specularQueueSize = 0;
+  *queues.specularQueueSize = 0;*/
 
   writeToCanvas<<<grid, block>>>(
       canvasSize,
@@ -606,6 +682,9 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
       paths,
       currentPath
       );
+
+  castRays<<<grid, block>>>(paths, queues.extensionQueue, canvasSize, queues.extensionQueueSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
+  queues.extensionQueueSize = 0;
 
   ++currentPath;
 

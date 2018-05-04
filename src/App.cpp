@@ -234,6 +234,7 @@ void App::createSceneFile(const std::string& filename)
 void App::loadModel(const std::string& modelFile)
 {
   model = loader.loadOBJ(modelFile);
+  cudaRenderer.reset();
 }
 
 void App::loadSceneFile(const std::string& filename)
@@ -315,9 +316,7 @@ void App::writeTextureToFile(const GLTexture& texture, const std::string& fileNa
   std::vector<unsigned char> tmp(size.x*size.y*3, 255);
 
   for (int i = 0; i < size.x*size.y*3; ++i)
-  {
     tmp[i] *= *(static_cast<float*>(mem) + i);
-  }
 
   IL_CHECK(ilTexImage(size.x, size.y, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, tmp.data()));
 
