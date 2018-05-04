@@ -52,17 +52,17 @@ struct Queues
   {
     release();
 
-    CUDA_CHECK(cudaMallocManaged((void**) &extensionQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMallocManaged((void**) &extensionQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &extensionQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &extensionQueueSize, sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMallocManaged((void**) &diffuseQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMallocManaged((void**) &diffuseQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &diffuseQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &diffuseQueueSize, sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMallocManaged((void**) &specularQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMallocManaged((void**) &specularQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &specularQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &specularQueueSize, sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMallocManaged((void**) &shadowQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMallocManaged((void**) &shadowQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &shadowQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &shadowQueueSize, sizeof(uint32_t)));
 
     cudaError_t err = cudaGetLastError();
 
@@ -93,7 +93,6 @@ struct Queues
 
 struct Paths
 {
-  uint32_t* pathCount;
   Ray* rays;
   uint2* pixels;
   RaycastResult* results;
@@ -108,7 +107,6 @@ struct Paths
 
   Paths()
   :
-    pathCount(nullptr),
     rays(nullptr),
     pixels(nullptr),
     results(nullptr),
@@ -128,21 +126,19 @@ struct Paths
   {
     release();
 
-    CUDA_CHECK(cudaMallocManaged((void**) &pathCount, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMallocManaged((void**) &rays, 2*size.x*size.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMallocManaged((void**) &pixels, 2*size.x*size.y*sizeof(uint2)));
-    CUDA_CHECK(cudaMallocManaged((void**) &results, 2*size.x*size.y*sizeof(RaycastResult)));
-    CUDA_CHECK(cudaMallocManaged((void**) &colors, 2*size.x*size.y*sizeof(float3)));
-    CUDA_CHECK(cudaMallocManaged((void**) &throughputs, 2*size.x*size.y*sizeof(float3)));
-    CUDA_CHECK(cudaMallocManaged((void**) &p, 2*size.x*size.y*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &rays, size.x*size.y*sizeof(Ray)));
+    CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(uint2)));
+    CUDA_CHECK(cudaMalloc((void**) &results, size.x*size.y*sizeof(RaycastResult)));
+    CUDA_CHECK(cudaMalloc((void**) &colors, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMalloc((void**) &throughputs, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMalloc((void**) &p, size.x*size.y*sizeof(float)));
 
-    CUDA_CHECK(cudaMallocManaged((void**) &random0, size.x*size.y*sizeof(CURAND_TYPE)));
-    CUDA_CHECK(cudaMallocManaged((void**) &random1, size.x*size.y*sizeof(CURAND_TYPE)));
+    CUDA_CHECK(cudaMalloc((void**) &random0, size.x*size.y*sizeof(CURAND_TYPE)));
+    CUDA_CHECK(cudaMalloc((void**) &random1, size.x*size.y*sizeof(CURAND_TYPE)));
   }
 
   __host__ void release()
   {
-    CUDA_CHECK(cudaFree(pathCount));
     CUDA_CHECK(cudaFree(rays));
     CUDA_CHECK(cudaFree(pixels));
     CUDA_CHECK(cudaFree(results));
