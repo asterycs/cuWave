@@ -258,10 +258,22 @@ logicKernel(
   if (idx >= canvasSize.x * canvasSize.y)
     return;
 
-  const RaycastResult result = paths.results[idx];
+  const RaycastResult result = paths.result[idx];
 
   if (!result)
     return;
+
+  const uint32_t rayNr = paths.rayNr[idx];
+
+  if (rayNr < 5)
+  {
+    const uint32_t new_idx = atomicAdd(queues.extensionQueueSize, 1);
+    queues.extensionQueue[new_idx] = idx;
+  }else
+  {
+    const uint32_t new_idx = atomicAdd(queues.newPathQueueSize, 1);
+    queues.newPathQueue[new_idx] = idx;
+  }
 
   const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 
@@ -284,8 +296,7 @@ __global__ void
 writeToCanvas(
     const glm::ivec2 canvasSize,
     cudaSurfaceObject_t canvas,
-    Paths paths,
-    const int currentPath
+    Paths paths
     )
 {
   const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -295,8 +306,9 @@ writeToCanvas(
   if (idx >= canvasSize.x * canvasSize.y)
     return;
 
-  const float3 newColor = paths.colors[idx];
-  const uint2 pixel = paths.pixels[idx];
+  const uint32_t currentPath = paths.pathNr[idx];
+  const float3 newColor = paths.color[idx];
+  const uint2 pixel = paths.pixel[idx];
   float3 oldColor = readFromCanvas(pixel.x, pixel.y, canvas, canvasSize);
   float3 blend = static_cast<float>(currentPath-1)/currentPath * oldColor + 1.f/currentPath * newColor;
 
@@ -374,7 +386,7 @@ diffuseKernel(
   const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
   const uint32_t pathIdx = queues.diffuseQueue[idx];
 
-  const RaycastResult result = paths.results[pathIdx];
+  const RaycastResult result = paths.result[pathIdx];
   const Material& material = materials[triangleMaterialIds[result.triangleIdx]];
 
   const Triangle triangle = triangles[result.triangleIdx];
@@ -412,13 +424,24 @@ diffuseKernel(
     }
   }
 
-  const float3 filteredAmbient = paths.throughputs[pathIdx] * material.colorAmbient;
-  const float3 filteredDiffuse = paths.throughputs[pathIdx] * material.colorDiffuse;
-  const float3 fiteredEmission = paths.throughputs[pathIdx] * material.colorEmission;
+  const float3 filteredAmbient = paths.throughput[pathIdx] * material.colorAmbient;
+  const float3 filteredDiffuse = paths.throughput[pathIdx] * material.colorDiffuse;
+  const float3 fiteredEmission = paths.throughput[pathIdx] * material.colorEmission;
 
-  paths.colors[pathIdx] += fiteredEmission + filteredAmbient + brightness * filteredDiffuse / CUDART_PI_F;
+  paths.color[pathIdx] += fiteredEmission + filteredAmbient + brightness * filteredDiffuse / CUDART_PI_F;
+}
 
-  float33 B = getBasis(hitNormal);
+inline __device__ float3 reflectionDirection(const float3 normal, const float3 incomingDirection) {
+
+  const float cosT = dot(incomingDirection, normal);
+
+  return incomingDirection - 2 * cosT * normal;
+}
+
+/*extensionKernel(
+)
+{
+float33 B = getBasis(hitNormal);
   float3 extensionDir;
 
   do {
@@ -435,9 +458,10 @@ diffuseKernel(
   float p = cosO * dot(extensionDir, hitNormal) * (1.f / CUDART_PI_F);
   float3 throughput = material.colorDiffuse / CUDART_PI_F * dot(extensionDir, hitNormal);
 
-  paths.rays[pathIdx] = extensionRay;
-  paths.throughputs[pathIdx] = paths.throughputs[pathIdx] * throughput;
+  paths.ray[pathIdx] = extensionRay;
+  paths.throughput[pathIdx] = paths.throughput[pathIdx] * throughput;
   paths.p[pathIdx] *= p;
+  paths.rayNr[pathIdx] += 1;
 
   const uint32_t extensionIdx = atomicAdd(queues.extensionQueueSize, 1);
   queues.extensionQueue[extensionIdx] = pathIdx;
@@ -445,13 +469,7 @@ diffuseKernel(
   paths.random0[idx] = randomState1;
   paths.random1[idx] = randomState2;
 }
-
-inline __device__ float3 reflectionDirection(const float3 normal, const float3 incomingDirection) {
-
-  const float cosT = dot(incomingDirection, normal);
-
-  return incomingDirection - 2 * cosT * normal;
-}
+ */
 
 /*__global__ void
 specularKernel(
@@ -494,7 +512,7 @@ specularKernel(
   paths.secondaryFilters[newRayIdx] = paths.primaryFilters[primaryIdx];
 }*/
 
-__global__ void newPaths(
+__global__ void resetAllPaths(
     Paths paths,
     uint32_t* queue,
     Camera camera,
@@ -510,32 +528,32 @@ __global__ void newPaths(
   const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(x, y, canvasSize);
   const Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x)/canvasSize.y);
 
-  paths.rays[idx] = ray;
+  paths.ray[idx] = ray;
   queue[idx] = idx;
-  paths.colors[idx] = make_float3(0.f, 0.f, 0.f);
-  paths.throughputs[idx] = make_float3(1.f, 1.f, 1.f);
-  paths.pixels[idx] = make_uint2(x, y);
+  paths.color[idx] = make_float3(0.f, 0.f, 0.f);
+  paths.throughput[idx] = make_float3(1.f, 1.f, 1.f);
+  paths.pixel[idx] = make_uint2(x, y);
   paths.p[idx] = 1.f;
+  paths.rayNr[idx] = 1;
+  paths.pathNr[idx] = 1;
 }
 
-__global__ void castRays(Paths paths, uint32_t* queue, const glm::ivec2 canvasSize, uint32_t* queueSize, const Triangle* triangles, const Node* bvh, const Material* materials, const unsigned int* traingelMaterialIds)
+__global__ void castRays(Paths paths, const glm::ivec2 canvasSize, const Triangle* triangles, const Node* bvh, const Material* materials, const unsigned int* traingelMaterialIds)
 {
   const int x = threadIdx.x + blockIdx.x * blockDim.x;
   const int y = threadIdx.y + blockIdx.y * blockDim.y;
   const int idx = x + y * canvasSize.x;
 
-  if (idx >= *queueSize)
+  if (idx >= canvasSize.x * canvasSize.y)
     return;
 
-  const uint32_t pathIdx = queue[idx];
-  const Ray ray = paths.rays[pathIdx];
+  const Ray ray = paths.ray[idx];
   RaycastResult result = rayCast<HitType::CLOSEST>(ray, bvh, triangles, BIGT);
-  paths.results[pathIdx] = result;
+  paths.result[idx] = result;
 }
 
 void CudaRenderer::reset()
 {
-  currentPath = 1;
   queues.reset();
 }
 
@@ -585,7 +603,7 @@ void CudaRenderer::resize(const glm::ivec2 size)
 }
 
 
-CudaRenderer::CudaRenderer() : lastCamera(), lastSize(), currentPath(1)
+CudaRenderer::CudaRenderer() : lastCamera(), lastSize()
 {
   uint32_t cudaDeviceCount = 0;
   int cudaDevices[8];
@@ -618,6 +636,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   const glm::ivec2 canvasSize = canvas.getSize();
   const bool diffCamera = std::memcmp(&camera, &lastCamera, sizeof(Camera));
   const bool diffSize = (canvasSize != lastSize);
+  const auto surfaceObj = canvas.getCudaMappedSurfaceObject();
 
   const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
   const dim3 grid( (canvasSize.x + block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
@@ -628,15 +647,11 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
     lastSize = canvasSize;
     reset();
 
-    newPaths<<<grid, block>>>(paths, queues.extensionQueue, camera, canvasSize);
+    resetAllPaths<<<grid, block>>>(paths, queues.extensionQueue, camera, canvasSize);
     CUDA_CHECK(cudaDeviceSynchronize());
-    CUDA_CHECK(cudaMemset(queues.extensionQueueSize, canvasSize.x * canvasSize.y, sizeof(uint32_t)));
   }
 
-  const auto surfaceObj = canvas.getCudaMappedSurfaceObject();
-
-  castRays<<<grid, block>>>(paths, queues.extensionQueue, canvasSize, queues.extensionQueueSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
-  CUDA_CHECK(cudaMemset(queues.extensionQueueSize, 0, sizeof(uint32_t)));
+  castRays<<<grid, block>>>(paths, canvasSize, model.getDeviceTriangles(), model.getDeviceBVH(), model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
 
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemset(queues.extensionQueueSize, 0, sizeof(uint32_t)));
@@ -680,14 +695,41 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   CUDA_CHECK(cudaDeviceSynchronize());
   *queues.specularQueueSize = 0;*/
 
+  /*createExtensionKernel<<<grid, block>>>(
+      canvasSize,
+      queues,
+      paths,
+      model.getDeviceTriangles(),
+      model.getDeviceLightIds(),
+      model.getNLights(),
+      model.getDeviceTriangleMaterialIds(),
+      model.getDeviceMaterials(),
+      model.getDeviceBVH()
+      );*/
+
+  CUDA_CHECK(cudaDeviceSynchronize());
+  CUDA_CHECK(cudaMemset(queues.extensionQueueSize, 0, sizeof(uint32_t)));
+
+  /*newPathKernel<<<grid, block>>>(
+      canvasSize,
+      queues,
+      paths,
+      model.getDeviceTriangles(),
+      model.getDeviceLightIds(),
+      model.getNLights(),
+      model.getDeviceTriangleMaterialIds(),
+      model.getDeviceMaterials(),
+      model.getDeviceBVH()
+      );*/
+
+  CUDA_CHECK(cudaDeviceSynchronize());
+  CUDA_CHECK(cudaMemset(queues.newPathQueueSize, 0, sizeof(uint32_t)));
+
   writeToCanvas<<<grid, block>>>(
       canvasSize,
       surfaceObj,
-      paths,
-      currentPath
+      paths
       );
-
-  ++currentPath;
 
   CUDA_CHECK(cudaDeviceSynchronize());
   canvas.cudaUnmap();

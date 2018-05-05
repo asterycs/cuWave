@@ -27,8 +27,8 @@ struct Queues
   uint32_t* specularQueue;
   uint32_t* specularQueueSize;
 
-  uint32_t* shadowQueue;
-  uint32_t* shadowQueueSize;
+  uint32_t* newPathQueue;
+  uint32_t* newPathQueueSize;
 
   Queues()
   :
@@ -38,8 +38,8 @@ struct Queues
     diffuseQueueSize(nullptr),
     specularQueue(nullptr),
     specularQueueSize(nullptr),
-    shadowQueue(nullptr),
-    shadowQueueSize(nullptr) {};
+    newPathQueue(nullptr),
+    newPathQueueSize(nullptr) {};
 
   Queues(const Queues& other) = default;
 
@@ -61,8 +61,8 @@ struct Queues
     CUDA_CHECK(cudaMalloc((void**) &specularQueue, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &specularQueueSize, sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMalloc((void**) &shadowQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &shadowQueueSize, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &newPathQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &newPathQueueSize, sizeof(uint32_t)));
 
     cudaError_t err = cudaGetLastError();
 
@@ -78,8 +78,8 @@ struct Queues
     CUDA_CHECK(cudaFree(diffuseQueueSize));
     CUDA_CHECK(cudaFree(specularQueue));
     CUDA_CHECK(cudaFree(specularQueueSize));
-    CUDA_CHECK(cudaFree(shadowQueue));
-    CUDA_CHECK(cudaFree(shadowQueueSize));
+    CUDA_CHECK(cudaFree(newPathQueue));
+    CUDA_CHECK(cudaFree(newPathQueueSize));
   }
 
   __host__ void reset()
@@ -87,18 +87,20 @@ struct Queues
     CUDA_CHECK(cudaMemset(extensionQueueSize, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(diffuseQueueSize, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(specularQueueSize, 0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(shadowQueueSize, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(newPathQueueSize, 0, sizeof(uint32_t)));
   }
 };
 
 struct Paths
 {
-  Ray* rays;
-  uint2* pixels;
-  RaycastResult* results;
-  float3* colors;
-  float3* throughputs;
+  Ray* ray;
+  uint2* pixel;
+  RaycastResult* result;
+  float3* color;
+  float3* throughput;
   float* p;
+  uint32_t* pathNr;
+  uint32_t* rayNr;
 
   CURAND_TYPE* random0;
   CURAND_TYPE* random1;
@@ -107,12 +109,14 @@ struct Paths
 
   Paths()
   :
-    rays(nullptr),
-    pixels(nullptr),
-    results(nullptr),
-    colors(nullptr),
-    throughputs(nullptr),
+    ray(nullptr),
+    pixel(nullptr),
+    result(nullptr),
+    color(nullptr),
+    throughput(nullptr),
     p(nullptr),
+    pathNr(nullptr),
+    rayNr(nullptr),
 
     random0(nullptr),
     random1(nullptr) {};
@@ -126,12 +130,14 @@ struct Paths
   {
     release();
 
-    CUDA_CHECK(cudaMalloc((void**) &rays, size.x*size.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMalloc((void**) &pixels, size.x*size.y*sizeof(uint2)));
-    CUDA_CHECK(cudaMalloc((void**) &results, size.x*size.y*sizeof(RaycastResult)));
-    CUDA_CHECK(cudaMalloc((void**) &colors, size.x*size.y*sizeof(float3)));
-    CUDA_CHECK(cudaMalloc((void**) &throughputs, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMalloc((void**) &ray, size.x*size.y*sizeof(Ray)));
+    CUDA_CHECK(cudaMalloc((void**) &pixel, size.x*size.y*sizeof(uint2)));
+    CUDA_CHECK(cudaMalloc((void**) &result, size.x*size.y*sizeof(RaycastResult)));
+    CUDA_CHECK(cudaMalloc((void**) &color, size.x*size.y*sizeof(float3)));
+    CUDA_CHECK(cudaMalloc((void**) &throughput, size.x*size.y*sizeof(float3)));
     CUDA_CHECK(cudaMalloc((void**) &p, size.x*size.y*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
 
     CUDA_CHECK(cudaMalloc((void**) &random0, size.x*size.y*sizeof(CURAND_TYPE)));
     CUDA_CHECK(cudaMalloc((void**) &random1, size.x*size.y*sizeof(CURAND_TYPE)));
@@ -139,12 +145,14 @@ struct Paths
 
   __host__ void release()
   {
-    CUDA_CHECK(cudaFree(rays));
-    CUDA_CHECK(cudaFree(pixels));
-    CUDA_CHECK(cudaFree(results));
-    CUDA_CHECK(cudaFree(colors));
-    CUDA_CHECK(cudaFree(throughputs));
+    CUDA_CHECK(cudaFree(ray));
+    CUDA_CHECK(cudaFree(pixel));
+    CUDA_CHECK(cudaFree(result));
+    CUDA_CHECK(cudaFree(color));
+    CUDA_CHECK(cudaFree(throughput));
     CUDA_CHECK(cudaFree(p));
+    CUDA_CHECK(cudaFree(pathNr));
+    CUDA_CHECK(cudaFree(rayNr));
 
     CUDA_CHECK(cudaFree(random0));
     CUDA_CHECK(cudaFree(random1));
@@ -164,7 +172,6 @@ public:
 private:
   Camera lastCamera;
   glm::ivec2 lastSize;
-  uint32_t currentPath;
 
   Queues queues;
   Paths paths;
