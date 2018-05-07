@@ -258,6 +258,9 @@ logicKernel(
   if (idx >= canvasSize.x * canvasSize.y)
     return;
 
+  if (idx == 0)
+    printf("%d %d\n", paths.rayNr[idx], paths.pathNr[idx]);
+
   const RaycastResult result = paths.result[idx];
 
   if (!result)
@@ -431,6 +434,39 @@ diffuseKernel(
   paths.color[pathIdx] += fiteredEmission + filteredAmbient + brightness * filteredDiffuse / CUDART_PI_F;
 }
 
+__global__ void
+newPathsKernel(
+    const glm::ivec2 canvasSize,
+    const Queues queues,
+    Paths paths,
+    const Camera camera
+    )
+{
+  const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  const int idx = x + y*canvasSize.x;
+
+  if (idx >= *queues.newPathQueueSize)
+    return;
+
+  const uint32_t pathIdx = queues.newPathQueue[idx];
+  const uint2 pixel = paths.pixel[pathIdx];
+
+  const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(pixel.x, pixel.y, canvasSize);
+  const Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x)/canvasSize.y);
+
+  paths.ray[pathIdx] = ray;
+
+  const uint32_t newExtensionIdx = atomicAdd(queues.extensionQueueSize, 1);
+  queues.extensionQueue[newExtensionIdx] = pathIdx;
+  paths.color[pathIdx] = make_float3(0.f, 0.f, 0.f);
+  paths.throughput[pathIdx] = make_float3(1.f, 1.f, 1.f);
+  paths.p[pathIdx] = 1.f;
+  paths.rayNr[pathIdx] = 1;
+  paths.pathNr[pathIdx] += 1;
+}
+
+
 inline __device__ float3 reflectionDirection(const float3 normal, const float3 incomingDirection) {
 
   const float cosT = dot(incomingDirection, normal);
@@ -438,10 +474,33 @@ inline __device__ float3 reflectionDirection(const float3 normal, const float3 i
   return incomingDirection - 2 * cosT * normal;
 }
 
-/*extensionKernel(
-)
+__global__ void createExtensionKernel(
+    const glm::ivec2 canvasSize,
+    const Queues queues,
+    Paths paths,
+    const Triangle* triangles,
+    const uint32_t* triangleMaterialIds,
+    const Material* materials
+    )
 {
-float33 B = getBasis(hitNormal);
+  const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
+  const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+  const uint32_t idx = x + y * canvasSize.x;
+
+  if (idx >= *queues.extensionQueueSize)
+    return;
+
+  const uint32_t pathIdx = queues.extensionQueue[idx];
+
+  const RaycastResult result = paths.result[pathIdx];
+  const Triangle triangle = triangles[result.triangleIdx];
+  const Material& material = materials[triangleMaterialIds[result.triangleIdx]];
+  float3 hitNormal = triangle.normal();
+
+  CURAND_TYPE randomState1 = paths.random0[idx];
+  CURAND_TYPE randomState2 = paths.random1[idx];
+
+  float33 B = getBasis(hitNormal);
   float3 extensionDir;
 
   do {
@@ -463,13 +522,10 @@ float33 B = getBasis(hitNormal);
   paths.p[pathIdx] *= p;
   paths.rayNr[pathIdx] += 1;
 
-  const uint32_t extensionIdx = atomicAdd(queues.extensionQueueSize, 1);
-  queues.extensionQueue[extensionIdx] = pathIdx;
-
   paths.random0[idx] = randomState1;
   paths.random1[idx] = randomState2;
 }
- */
+
 
 /*__global__ void
 specularKernel(
@@ -695,32 +751,24 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Mo
   CUDA_CHECK(cudaDeviceSynchronize());
   *queues.specularQueueSize = 0;*/
 
-  /*createExtensionKernel<<<grid, block>>>(
+  createExtensionKernel<<<grid, block>>>(
       canvasSize,
       queues,
       paths,
       model.getDeviceTriangles(),
-      model.getDeviceLightIds(),
-      model.getNLights(),
       model.getDeviceTriangleMaterialIds(),
-      model.getDeviceMaterials(),
-      model.getDeviceBVH()
-      );*/
+      model.getDeviceMaterials()
+      );
 
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemset(queues.extensionQueueSize, 0, sizeof(uint32_t)));
 
-  /*newPathKernel<<<grid, block>>>(
+  newPathsKernel<<<grid, block>>>(
       canvasSize,
       queues,
       paths,
-      model.getDeviceTriangles(),
-      model.getDeviceLightIds(),
-      model.getNLights(),
-      model.getDeviceTriangleMaterialIds(),
-      model.getDeviceMaterials(),
-      model.getDeviceBVH()
-      );*/
+      camera
+      );
 
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemset(queues.newPathQueueSize, 0, sizeof(uint32_t)));
