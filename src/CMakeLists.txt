@@ -7,7 +7,7 @@ file(GLOB SHADERS "shaders/*/*.glsl")
 source_group("shaders" FILES SHADERS)
 
 add_executable(wavy ${CXX_SRC} ${CXX_CU_SRC} ${CU_SRC})
-add_dependencies(wavy tinyobjloader glfw cxxopts nativefiledialog)
+add_dependencies(wavy glm glew imgui tinyobjloader glfw cxxopts nativefiledialog)
 
 target_link_libraries(wavy ${LINK_LIBS})
 add_dependencies(wavy copy_shader_files copy_benchmark_script)
@@ -22,18 +22,20 @@ set_target_properties(wavy PROPERTIES CUDA_STANDARD 14 CUDA_SEPARABLE_COMPILATIO
 add_custom_target(
         copy_shader_files
         ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/src/shaders ${CMAKE_BINARY_DIR}/src/shaders/
+        ${CMAKE_SOURCE_DIR}/src/shaders ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/
         COMMENT "Copying shader files for target: wavy" VERBATIM 
         )
 
 add_custom_target(
         copy_benchmark_script
         ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/benchmark.sh ${CMAKE_BINARY_DIR}/src
+        ${CMAKE_SOURCE_DIR}/benchmark.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMENT "Copying benchmark script for target: wavy" VERBATIM 
         )
 
-add_custom_command(TARGET wavy
-                  COMMAND ${CMAKE_SOURCE_DIR}/patches/error_parsing_fix.sh ${CMAKE_BINARY_DIR}/.project
-                  DEPENDS ${CMAKE_BINARY_DIR}/.project
-                  COMMENT "Fixing error parsing" VERBATIM )
+add_custom_command(
+        TARGET wavy
+        COMMAND ${CMAKE_SOURCE_DIR}/patches/error_parsing_fix.sh ${CMAKE_BINARY_DIR}/.project
+        DEPENDS ${CMAKE_BINARY_DIR}/.project
+        COMMENT "Fixing error parsing" VERBATIM
+        )
