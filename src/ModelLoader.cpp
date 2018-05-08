@@ -1,5 +1,7 @@
 #include "ModelLoader.hpp"
 
+#include <ostream>
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
@@ -10,6 +12,12 @@ ModelLoader::ModelLoader()
 
 ModelLoader::~ModelLoader()
 {
+}
+
+std::ostream& operator<<(std::ostream&os, const float3& v)
+{
+	os << v.x << " " << v.y << " " << v.z;
+	return os;
 }
 
 Model ModelLoader::loadOBJ(const std::string& path)
@@ -48,18 +56,40 @@ Model ModelLoader::loadOBJ(const std::string& path)
     material.colorSpecular = make_float3(tm.specular[0], tm.specular[1], tm.specular[2]);
     material.colorEmission = make_float3(tm.emission[0], tm.emission[1], tm.emission[2]);
     material.colorTransparent = make_float3(tm.transmittance[0], tm.transmittance[1], tm.transmittance[2]);
+    material.refractionIndex = tm.ior;
+
+    switch (tm.illum)
+    {
+	default:
+		std::cerr << "Unknown shading mode for material" << std::endl;
+	case 2:
+	case 5:
+	case 7:
+		material.mode = static_cast<Material::ShadingMode>(tm.illum);
+    }
+
+    /*std::cout << "ambient: " << material.colorAmbient << std::endl;
+    std::cout << "diffuse: " << material.colorDiffuse << std::endl;
+    std::cout << "specular: " << material.colorSpecular << std::endl;
+    std::cout << "emission: " << material.colorEmission << std::endl;
+    std::cout << "transparent: " << material.colorTransparent << std::endl;
+    std::cout << "refractionIndex: " << material.refractionIndex << std::endl;
+    std::cout << "mode: " << material.mode << std::endl << std::endl;*/
 
     materials.push_back(material);
   }
 
-  Material material;
-  material.colorAmbient = make_float3(0.f, 1.f, 0.f);
-  material.colorDiffuse = make_float3(0.f, 0.f, 0.f);
-  material.colorSpecular = make_float3(0.f, 0.f, 0.f);
-  material.colorEmission = make_float3(0.f, 0.f, 0.f);
-  material.colorTransparent = make_float3(0.f, 0.f, 0.f);
+	Material lightMaterial;
+	lightMaterial.colorEmission = make_float3(600.f, 600.f, 600.f);
+	materials.push_back(lightMaterial);
 
-  materials.push_back(material);
+	Material defaultMaterial;
+	defaultMaterial.colorAmbient = make_float3(0.f, 1.f, 0.f);
+	defaultMaterial.colorDiffuse = make_float3(0.f, 0.f, 0.f);
+	defaultMaterial.colorSpecular = make_float3(0.f, 0.f, 0.f);
+	defaultMaterial.colorEmission = make_float3(0.f, 0.f, 0.f);
+	defaultMaterial.colorTransparent = make_float3(0.f, 0.f, 0.f);
+	materials.push_back(defaultMaterial);
 
   for (size_t s = 0; s < shapes.size(); s++) {
     size_t index_offset = 0;

@@ -72,21 +72,23 @@ struct Material
   float3 colorTransparent;
 
   float shininess;
-  float refrIdx;
-  enum
+  float refractionIndex;
+  enum ShadingMode
   {
-    GORAUD,
-    PHONG,
-    FRESNEL
-  } shadingMode;
+	  HIGHLIGHT = 2,
+	  REFLECTION_FRESNEL = 5,
+	  TRANSPARENCY_REFLECTION_FRESNEL = 7
+  } mode;
 
   // TextureIndex?
 
-  Material() : shininess(1.f), refrIdx(1.f), shadingMode(GORAUD)
+  Material() : shininess(1.f), refractionIndex(1.f), mode(HIGHLIGHT)
   {
-    colorAmbient = make_float3(0.f, 0.f, 0.f);
-    colorDiffuse = make_float3(0.f, 0.f, 0.f);
-    colorSpecular= make_float3(0.f, 0.f, 0.f);
+    colorAmbient 	= make_float3(0.f, 0.f, 0.f);
+    colorDiffuse 	= make_float3(0.f, 0.f, 0.f);
+    colorSpecular	= make_float3(0.f, 0.f, 0.f);
+    colorEmission	= make_float3(0.f, 0.f, 0.f);
+    colorTransparent= make_float3(0.f, 0.f, 0.f);
   };
 
 };

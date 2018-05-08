@@ -199,10 +199,10 @@ void App::keyboardCallback(int key, int /*scancode*/, int action, int modifiers)
 
 void App::addLight()
 {
-  //const glm::mat4 v = camera.getView();
-  //const glm::mat4 l = glm::inverse(v);
+  const glm::mat4 v = camera.getView();
+  const glm::mat4 tform = glm::inverse(v);
 
-  std::cout << "add light!" << std::endl;
+  model.addLight(tform);
 }
 
 void App::createSceneFile(const std::string& filename)

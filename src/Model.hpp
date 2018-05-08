@@ -22,6 +22,9 @@ public:
   Model& operator=(Model&) = delete;
   Model& operator=(Model&&) = default;
 
+  void addLight(const glm::mat4 tform);
+  void rebuild();
+
   const Triangle* getDeviceTriangles() const;
   const Material* getDeviceMaterials() const;
   const uint32_t* getDeviceTriangleMaterialIds() const;
@@ -38,7 +41,8 @@ private:
   thrust::device_vector<uint32_t> triangleMaterialIds;
   thrust::device_vector<uint32_t> lightTriangles;
 
-  unsigned int nTriangles;
+  uint32_t nTriangles;
+  uint32_t nMaterials;
 
   std::string fileName;
 

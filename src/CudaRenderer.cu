@@ -433,7 +433,7 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
       * material.colorEmission;
 
   paths.color[pathIdx] += fiteredEmission + filteredAmbient
-      + brightness * filteredDiffuse / CUDART_PI_F;
+      + brightness / lightTriangles * filteredDiffuse / CUDART_PI_F;
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -749,6 +749,10 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
    CUDA_CHECK(cudaDeviceSynchronize());
    *queues.specularQueueSize = 0;*/
 
+  writeToCanvas<<<grid, block>>>(canvasSize, surfaceObj, paths);
+
+  CUDA_CHECK(cudaDeviceSynchronize());
+
   createExtensionKernel<<<grid, block>>>(canvasSize, queues, paths,
       model.getDeviceTriangles(), model.getDeviceTriangleMaterialIds(),
       model.getDeviceMaterials());
@@ -761,9 +765,6 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemset(queues.newPathQueueSize, 0, sizeof(uint32_t)));
 
-  writeToCanvas<<<grid, block>>>(canvasSize, surfaceObj, paths);
-
-  CUDA_CHECK(cudaDeviceSynchronize());
   canvas.cudaUnmap();
 }
 

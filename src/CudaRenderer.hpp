@@ -8,7 +8,7 @@
 #include "Light.hpp"
 #include "Model.hpp"
 
-#define QUASIRANDOM
+//#define QUASIRANDOM
 
 #ifdef QUASIRANDOM
 #define CURAND_TYPE curandStateScrambledSobol64
