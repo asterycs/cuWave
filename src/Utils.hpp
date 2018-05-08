@@ -2,12 +2,11 @@
 #define UTILS_HPP
 
 #ifdef __CUDACC__
-  #define CUDA_FUNCTION __host__ __device__
+  #define CUDA_HOST_DEVICE __host__ __device__
 #else
-  #define CUDA_FUNCTION
+  #define CUDA_HOST_DEVICE
 #endif
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
 
 #include <vector_types.h>
@@ -61,7 +60,8 @@ std::string readFile(const std::string& filePath);
 
 bool fileExists(const std::string& fileName);
 
-CUDA_FUNCTION float3 glm32cuda3(const glm::fvec3 v);
+CUDA_HOST_DEVICE float3 glm42float3(const glm::fvec4 g);
+CUDA_HOST_DEVICE float3 glm32float3(const glm::fvec3 g);
 
 struct Material
 {
@@ -99,13 +99,13 @@ struct AABB
   float3 max;
   float3 min;
 
-  CUDA_FUNCTION AABB(const float3& a, const float3& b) : max(fmaxf(a, b)), min(fminf(a, b)) { }
-  CUDA_FUNCTION AABB() : max(make_float3(0.f, 0.f, 0.f)), min(make_float3(0.f, 0.f, 0.f)) { }
+  CUDA_HOST_DEVICE AABB(const float3& a, const float3& b) : max(fmaxf(a, b)), min(fminf(a, b)) { }
+  CUDA_HOST_DEVICE AABB() : max(make_float3(0.f, 0.f, 0.f)), min(make_float3(0.f, 0.f, 0.f)) { }
 
-  CUDA_FUNCTION void add(const Triangle& v);
-  CUDA_FUNCTION void add(const float3 v);
-  CUDA_FUNCTION float area() const;
-  CUDA_FUNCTION unsigned int maxAxis() const;
+  CUDA_HOST_DEVICE void add(const Triangle& v);
+  CUDA_HOST_DEVICE void add(const float3 v);
+  CUDA_HOST_DEVICE float area() const;
+  CUDA_HOST_DEVICE unsigned int maxAxis() const;
 };
 
 struct Node
@@ -122,8 +122,8 @@ struct Ray
   float3 origin;
   float3 direction;
 
-  CUDA_FUNCTION Ray(const float3& o, const float3& d) : origin(o), direction(d) {};
-  CUDA_FUNCTION Ray() = default;
+  CUDA_HOST_DEVICE  Ray(const float3& o, const float3& d) : origin(o), direction(d) {};
+  CUDA_HOST_DEVICE  Ray() = default;
 };
 
 struct RaycastResult {
@@ -133,7 +133,7 @@ struct RaycastResult {
   float3 point;
 
 
-  CUDA_FUNCTION RaycastResult(const unsigned int i,
+  CUDA_HOST_DEVICE  RaycastResult(const unsigned int i,
     const float t,
     const float2& uv,
     const float3& point)
@@ -144,7 +144,7 @@ struct RaycastResult {
     point(point)
   {}
 
-  CUDA_FUNCTION RaycastResult()
+  CUDA_HOST_DEVICE  RaycastResult()
     :
     triangleIdx(-1),
     t(999999.f),
@@ -152,7 +152,7 @@ struct RaycastResult {
     point()
   {}
 
-  CUDA_FUNCTION operator bool() const { return (triangleIdx != -1); }
+  CUDA_HOST_DEVICE  operator bool() const { return (triangleIdx != -1); }
 };
 
 #endif

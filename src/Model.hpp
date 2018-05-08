@@ -7,6 +7,8 @@
 
 #include <thrust/device_vector.h>
 
+#include "glm/glm.hpp"
+
 #include "Utils.hpp"
 #include "Triangle.hpp"
 #include "BVHBuilder.hpp"

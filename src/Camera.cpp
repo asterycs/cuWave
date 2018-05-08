@@ -1,5 +1,6 @@
 #include "Camera.hpp"
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/constants.hpp>
@@ -97,7 +98,7 @@ CUDA_HOST_DEVICE Ray Camera::generateRay(const glm::fvec2& point, const float as
 
   glm::fvec3 d = ip - getPosition();
 
-  return Ray(glm32cuda3(position), glm32cuda3(normalize(d)));
+  return Ray(glm32float3(position), glm32float3(normalize(d)));
 }
 
 CUDA_HOST_DEVICE glm::fvec3 Camera::worldPositionFromNormalizedImageCoordinate(const glm::fvec2& point, const float aspectRatio) const

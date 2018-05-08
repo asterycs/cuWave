@@ -16,16 +16,6 @@ Model::~Model()
 
 }
 
-float3 glm42float3(const glm::fvec4 g)
-{
-	return make_float3(g.x, g.y, g.z);
-}
-
-float3 glm32float3(const glm::fvec3 g)
-{
-	return make_float3(g.x, g.y, g.z);
-}
-
 void Model::addLight(const glm::mat4 tform)
 {
 	const glm::vec2 lightSize(0.15f, 0.15f);

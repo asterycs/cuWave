@@ -9,13 +9,21 @@
 #define ILUT_USE_OPENGL
 #include <IL/ilu.h>
 
-#include <glm/gtx/component_wise.hpp>
-
 #ifdef ENABLE_CUDA
   #include <cuda_runtime.h>
 #endif
 
 #include "vector_math.hpp"
+
+CUDA_HOST_DEVICE float3 glm42float3(const glm::fvec4 g)
+{
+	return make_float3(g.x, g.y, g.z);
+}
+
+CUDA_HOST_DEVICE float3 glm32float3(const glm::fvec3 g)
+{
+	return make_float3(g.x, g.y, g.z);
+}
 
 void CheckOpenGLError(const char* call, const char* fname, int line)
 {
@@ -70,11 +78,6 @@ void CheckCudaError(const char* call, const char* fname, int line)
 }
 #endif
 
-CUDA_FUNCTION float3 glm32cuda3(const glm::fvec3 v)
-{
-  return make_float3(v.x, v.y, v.z);
-}
-
 std::string readFile(const std::string& filePath) {
     std::string content;
     std::ifstream fileStream(filePath, std::ios::in);
@@ -100,14 +103,14 @@ bool fileExists(const std::string& filename)
     return infile.good();
 }
 
-CUDA_FUNCTION float AABB::area() const
+CUDA_HOST_DEVICE float AABB::area() const
 {
   float3 d = max - min;
 
   return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
 }
 
-CUDA_FUNCTION unsigned int AABB::maxAxis() const
+CUDA_HOST_DEVICE unsigned int AABB::maxAxis() const
 {
   const float3 d = abs(max - min);
 
@@ -119,13 +122,13 @@ CUDA_FUNCTION unsigned int AABB::maxAxis() const
     return 2;
 }
 
-CUDA_FUNCTION void AABB::add(const Triangle& t)
+CUDA_HOST_DEVICE void AABB::add(const Triangle& t)
 {
   for (auto& v : t.vertices)
     add(v.p);
 }
 
-CUDA_FUNCTION void AABB::add(const float3 v)
+CUDA_HOST_DEVICE void AABB::add(const float3 v)
 {
   min = fmin(min, v);
   max = fmax(max, v);

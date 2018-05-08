@@ -9,6 +9,7 @@
   #define CUDA_HOST
 #endif
 
+#include "glm/glm.hpp"
 #include "Utils.hpp"
 
 

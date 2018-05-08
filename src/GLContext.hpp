@@ -5,7 +5,6 @@
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 
 #include <ft2build.h>

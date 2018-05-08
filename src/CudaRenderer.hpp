@@ -1,11 +1,13 @@
 #ifndef CUDARENDERER_HPP
 #define CUDARENDERER_HPP
 
+#include <curand.h>
+#include <curand_kernel.h>
+
 #include <thrust/device_vector.h>
 
 #include "GLTexture.hpp"
 #include "Camera.hpp"
-#include "Light.hpp"
 #include "Model.hpp"
 
 //#define QUASIRANDOM
