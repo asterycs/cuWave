@@ -10,14 +10,6 @@
 #include "Camera.hpp"
 #include "Model.hpp"
 
-//#define QUASIRANDOM
-
-#ifdef QUASIRANDOM
-#define CURAND_TYPE curandStateScrambledSobol64
-#else
-#define CURAND_TYPE curandState_t
-#endif
-
 struct Queues
 {
   uint32_t* extensionQueue;
@@ -104,8 +96,9 @@ struct Paths
   uint32_t* pathNr;
   uint32_t* rayNr;
 
-  CURAND_TYPE* random0;
-  CURAND_TYPE* random1;
+  uint32_t* scrambleConstants;
+  uint32_t* randomNumbersConsumed;
+  float* randomFloats;
 
   Paths(const Paths& other) = default;
 
@@ -120,8 +113,9 @@ struct Paths
     pathNr(nullptr),
     rayNr(nullptr),
 
-    random0(nullptr),
-    random1(nullptr) {};
+    scrambleConstants(nullptr),
+    randomNumbersConsumed(nullptr),
+    randomFloats(nullptr) {};
 
   ~Paths()
   {
@@ -141,8 +135,9 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMalloc((void**) &random0, size.x*size.y*sizeof(CURAND_TYPE)));
-    CUDA_CHECK(cudaMalloc((void**) &random1, size.x*size.y*sizeof(CURAND_TYPE)));
+    CUDA_CHECK(cudaMalloc((void**) &scrambleConstants, 2*size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &randomNumbersConsumed, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &randomFloats, size.x*size.y*sizeof(float)));
   }
 
   __host__ void release()
@@ -156,8 +151,9 @@ struct Paths
     CUDA_CHECK(cudaFree(pathNr));
     CUDA_CHECK(cudaFree(rayNr));
 
-    CUDA_CHECK(cudaFree(random0));
-    CUDA_CHECK(cudaFree(random1));
+    CUDA_CHECK(cudaFree(scrambleConstants));
+    CUDA_CHECK(cudaFree(randomNumbersConsumed));
+    CUDA_CHECK(cudaFree(randomFloats));
   }
 };
 
@@ -177,6 +173,8 @@ private:
 
   Queues queues;
   Paths paths;
+
+  curandGenerator_t rndGen;
 };
 
 #endif // CUDARENDERER_HPP

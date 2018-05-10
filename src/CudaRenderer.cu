@@ -196,43 +196,6 @@ RaycastResult rayCast(const Ray ray, const Node* bvh, const Triangle* triangles,
   return result;
 }
 
-template<typename curandState>
-__global__ void initRand(const int32_t seed, curandState* const curandStateDevPtr,
-    const glm::ivec2 size)
-{
-  const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
-  const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
-
-  if (x >= size.x || y >= size.y)
-    return;
-
-  curandState localState;
-  curand_init(seed, x + y * size.x, 0, &localState);
-  curandStateDevPtr[x + y * size.x] = localState;
-}
-
-__global__ void initRand(curandDirectionVectors64_t* sobolDirectionVectors,
-    unsigned long long* sobolScrambleConstants,
-    curandStateScrambledSobol64* state, const glm::ivec2 size)
-{
-  const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
-  const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
-
-  if (x >= size.x || y >= size.y)
-    return;
-
-  const uint32_t scrIdx = x + size.x * y;
-  const uint32_t dirIdx = (x + size.x * y) % 10000;
-
-  curandDirectionVectors64_t* dir = &sobolDirectionVectors[dirIdx];
-  unsigned long long scr = sobolScrambleConstants[scrIdx];
-  curandStateScrambledSobol64 localState;
-
-  curand_init(*dir, scr, 0, &localState);
-
-  state[x + size.x * y] = localState;
-}
-
 __device__ void writeToCanvas(const uint32_t x, const uint32_t y,
     const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize,
     const float3 data)
@@ -386,8 +349,9 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
   const Triangle triangle = triangles[result.triangleIdx];
   float3 hitNormal = triangle.normal();
 
-  CURAND_TYPE randomState1 = paths.random0[idx];
-  CURAND_TYPE randomState2 = paths.random1[idx];
+  uint32_t scrambleConstant0 = paths.scrambleConstants[2*pathIdx];
+  uint32_t scrambleConstant1 = paths.scrambleConstants[2*pathIdx+1];
+  uint32_t consumedRandoms = paths.randomNumbersConsumed[pathIdx];
 
   const float3 shadowRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
 
@@ -397,8 +361,16 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
   {
     float pdf;
     float3 shadowPoint;
-    triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, randomState1,
-        randomState2);
+
+	const float f0 = paths.randomFloats[(pathIdx + consumedRandoms++) % (canvasSize.x * canvasSize.y)];
+	const float f1 = paths.randomFloats[(pathIdx + consumedRandoms++) % (canvasSize.x * canvasSize.y)];
+	const uint32_t i0 = ceilf(f0 * 4294967296);
+	const uint32_t i1 = ceilf(f1 * 4294967296);
+
+	const float r0 = 2.3283064365386963e-10f * (i0 ^ scrambleConstant0);
+	const float r1 = 2.3283064365386963e-10f * (i1 ^ scrambleConstant1);
+
+    triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, r0, r1);
 
     const float3 shadowRayDirection = shadowPoint - shadowRayOrigin;
     const Ray shadowRay(shadowRayOrigin, normalize(shadowRayDirection));
@@ -434,6 +406,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
   paths.color[pathIdx] += fiteredEmission + filteredAmbient
       + brightness / lightTriangles * filteredDiffuse / CUDART_PI_F;
+
+  paths.randomNumbersConsumed[pathIdx] = consumedRandoms;
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -449,8 +423,7 @@ __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
   const uint32_t pathIdx = queues.newPathQueue[idx];
   const uint2 pixel = paths.pixel[pathIdx];
 
-  const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(
-      pixel.x, pixel.y, canvasSize);
+  const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(pixel.x, pixel.y, canvasSize);
   const Ray ray = camera.generateRay(nic,
       static_cast<float>(canvasSize.x) / canvasSize.y);
 
@@ -492,18 +465,25 @@ __global__ void createExtensionKernel(const glm::ivec2 canvasSize,
   const Material& material = materials[triangleMaterialIds[result.triangleIdx]];
   float3 hitNormal = triangle.normal();
 
-  CURAND_TYPE randomState1 = paths.random0[idx];
-  CURAND_TYPE randomState2 = paths.random1[idx];
+  uint32_t scrambleConstant0 = paths.scrambleConstants[2*pathIdx];
+  uint32_t scrambleConstant1 = paths.scrambleConstants[2*pathIdx+1];
+  uint32_t consumedRandoms = paths.randomNumbersConsumed[pathIdx];
 
   float33 B = getBasis(hitNormal);
   float3 extensionDir;
 
   do
   {
-    extensionDir = make_float3(curand_uniform(&randomState1) * 2.0f - 1.0f,
-        curand_uniform(&randomState2) * 2.0f - 1.0f, 0.f);
-  } while ((extensionDir.x * extensionDir.x + extensionDir.y * extensionDir.y)
-      >= 1);
+	const float f0 = paths.randomFloats[(pathIdx + consumedRandoms++) % (canvasSize.x * canvasSize.y)];
+	const float f1 = paths.randomFloats[(pathIdx + consumedRandoms++) % (canvasSize.x * canvasSize.y)];
+	const uint32_t i0 = ceilf(f0 * 4294967296);
+	const uint32_t i1 = ceilf(f1 * 4294967296);
+
+	const float r0 = 2.3283064365386963e-10f * (i0 ^ scrambleConstant0);
+	const float r1 = 2.3283064365386963e-10f * (i1 ^ scrambleConstant1);
+
+    extensionDir = make_float3(r0 * 2.0f - 1.0f, r1 * 2.0f - 1.0f, 0.f);
+  } while ((extensionDir.x * extensionDir.x + extensionDir.y * extensionDir.y) >= 1);
 
   extensionDir.z = sqrt(
       1 - extensionDir.x * extensionDir.x - extensionDir.y * extensionDir.y);
@@ -522,8 +502,7 @@ __global__ void createExtensionKernel(const glm::ivec2 canvasSize,
   paths.p[pathIdx] *= p;
   paths.rayNr[pathIdx] += 1;
 
-  paths.random0[idx] = randomState1;
-  paths.random1[idx] = randomState2;
+  paths.randomNumbersConsumed[pathIdx] = consumedRandoms;
 }
 
 /*__global__ void
@@ -589,6 +568,7 @@ __global__ void resetAllPaths(Paths paths, Camera camera,
   paths.p[idx] = 1.f;
   paths.rayNr[idx] = 1;
   paths.pathNr[idx] = 1;
+  paths.randomNumbersConsumed[idx] = 0;
 }
 
 __global__ void castRays(Paths paths, const glm::ivec2 canvasSize,
@@ -628,41 +608,14 @@ void CudaRenderer::resize(const glm::ivec2 size)
   dim3 block(BLOCKWIDTH, BLOCKWIDTH);
   dim3 grid((size.x + block.x - 1) / block.x, (size.y + block.y - 1) / block.y);
 
-  cudaStream_t streams[2];
-  CUDA_CHECK(cudaStreamCreate(&streams[0]));
-  CUDA_CHECK(cudaStreamCreate(&streams[1]));
+  uint32_t* hostScrambleConstants32;
 
-#ifdef QUASIRANDOM
-  curandDirectionVectors64_t* hostDirectionVectors64;
-  unsigned long long int* hostScrambleConstants64;
-
-  curandDirectionVectors64_t* devDirectionVectors64;
-  unsigned long long int* devScrambleConstants64;
-
-  curandGetDirectionVectors64(&hostDirectionVectors64, CURAND_SCRAMBLED_DIRECTION_VECTORS_64_JOEKUO6);
-  curandGetScrambleConstants64(&hostScrambleConstants64);
-
-  CUDA_CHECK(cudaMalloc((void **)&(devDirectionVectors64), 20000 * sizeof(curandDirectionVectors64_t)));
-  CUDA_CHECK(cudaMemcpy(devDirectionVectors64, hostDirectionVectors64, 20000 * sizeof(curandDirectionVectors64_t), cudaMemcpyHostToDevice));
-
-  CUDA_CHECK(cudaMalloc((void **)&(devScrambleConstants64), size.x * size.y * sizeof(unsigned long long int)));
-  CUDA_CHECK(cudaMemcpy(devScrambleConstants64, hostScrambleConstants64, size.x * size.y * sizeof(unsigned long long int), cudaMemcpyHostToDevice));
-
-  initRand<<<grid, block, 0, streams[0]>>>(devDirectionVectors64, devScrambleConstants64, paths.random0, size);
-  initRand<<<grid, block, 0, streams[1]>>>(devDirectionVectors64 + 10000, devScrambleConstants64, paths.random1, size);
-
-  CUDA_CHECK(cudaFree(devDirectionVectors64));
-  CUDA_CHECK(cudaFree(devScrambleConstants64));
-
-#else
-  initRand<<<grid, block, 0, streams[0]>>>(0, paths.random0, size);
-  initRand<<<grid, block, 0, streams[1]>>>(5, paths.random1, size);
-#endif
-
-  CUDA_CHECK(cudaStreamDestroy(streams[0]));
-  CUDA_CHECK(cudaStreamDestroy(streams[1]));
+  CUDA_CHECK(curandGetScrambleConstants32(&hostScrambleConstants32));
+  CUDA_CHECK(cudaMemcpy(paths.scrambleConstants, hostScrambleConstants32, 2*size.x * size.y * sizeof(uint32_t), cudaMemcpyHostToDevice));
 
   CUDA_CHECK(cudaDeviceSynchronize());
+
+  reset();
 }
 
 CudaRenderer::CudaRenderer()
@@ -683,6 +636,9 @@ CudaRenderer::CudaRenderer()
 
   CUDA_CHECK(cudaSetDevice(cudaDevices[0]));
 
+  CURAND_CHECK(curandCreateGenerator(&rndGen, CURAND_RNG_QUASI_SCRAMBLED_SOBOL32));
+  CURAND_CHECK(curandSetQuasiRandomGeneratorDimensions(rndGen, 1));
+
   resize(glm::ivec2(WWIDTH, WHEIGHT));
 }
 
@@ -690,6 +646,7 @@ CudaRenderer::~CudaRenderer()
 {
   queues.release();
   paths.release();
+  CURAND_CHECK(curandDestroyGenerator(rndGen));
 }
 
 void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
@@ -704,8 +661,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
   const auto surfaceObj = canvas.getCudaMappedSurfaceObject();
 
   const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
-  const dim3 grid((canvasSize.x + block.x - 1) / block.x,
-      (canvasSize.y + block.y - 1) / block.y);
+  const dim3 grid((canvasSize.x + block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
 
   if (diffCamera != 0 || diffSize != 0)
   {
@@ -713,6 +669,12 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 
     reset();
   }
+
+  const int stepSize = 20000;
+  for (int offset = 0; offset < canvasSize.x*canvasSize.y; offset += stepSize)
+	  CURAND_CHECK(curandGenerateUniform(rndGen, paths.randomFloats+offset, std::min(stepSize, canvasSize.x*canvasSize.y - offset)));
+
+
 
   castRays<<<grid, block>>>(paths, canvasSize, model.getDeviceTriangles(),
       model.getDeviceBVH(), model.getDeviceMaterials(),

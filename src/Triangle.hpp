@@ -34,12 +34,8 @@ struct Triangle {
 		vertices[2] = v2;
 	}
 
-  template <typename curandState>
-  CUDA_DEVICE_FUNCTION void sample(float& pdf, float3& point, curandState& randomState1, curandState& randomState2) const
+  CUDA_DEVICE_FUNCTION void sample(float& pdf, float3& point, const float x, const float y) const
   {
-    const float x = curand_uniform(&randomState1);
-    const float y = curand_uniform(&randomState2);
-
     pdf = 1.0f / area();
 
     point = (1.f-sqrt(x))*vertices[0].p + (sqrtf(x)*(1-y))*vertices[1].p + (y*sqrtf(x))*vertices[2].p;

@@ -66,7 +66,6 @@ void CheckILError(const char* call, const char* fname, int line)
   }
 }
 
-#ifdef ENABLE_CUDA
 void CheckCudaError(const char* call, const char* fname, int line)
 {
     cudaError_t result_ = cudaGetLastError();
@@ -76,7 +75,14 @@ void CheckCudaError(const char* call, const char* fname, int line)
         exit(1);
     }
 }
-#endif
+
+void CheckCurandError(const curandStatus_t status, const char* fname, int line)
+{
+    if (status != CURAND_STATUS_SUCCESS) {
+        std::cerr << "Curand error at: " << fname << ":" << line << std::endl;
+        exit(1);
+    }
+}
 
 std::string readFile(const std::string& filePath) {
     std::string content;

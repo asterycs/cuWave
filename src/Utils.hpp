@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <numeric>
 
+#include <curand.h>
+
 #define WWIDTH 600
 #define WHEIGHT 600
 
@@ -48,10 +50,17 @@ class Model;
           call;\
           CheckCudaError(#call, __FILE__, __LINE__); \
       } while (0)
+
+  #define CURAND_CHECK(call) do { \
+	    curandStatus_t status = (call); \
+		CheckCurandError(status, __FILE__, __LINE__); \
+	  } while(0)
 #else
   #define CUDA_CHECK(call) call
+  #define CURAND_CHECK(call) call
 #endif
 
+void CheckCurandError(const curandStatus_t, const char* fname, int line);
 void CheckCudaError(const char* stmt, const char* fname, int line);
 void CheckILError(const char* stmt, const char* fname, int line);
 void CheckOpenGLError(const char* call, const char* fname, int line);
