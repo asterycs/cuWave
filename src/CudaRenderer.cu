@@ -25,6 +25,36 @@
 #define LEFT_HIT_BIT 0x80000000
 #define RIGHT_HIT_BIT 0x40000000
 
+__device__ uint32_t mix(uint32_t a, uint32_t b, uint32_t c)
+{
+  a -= b; a -= c; a ^= (c>>13);
+  b -= c; b -= a; b ^= (a<<8);
+  c -= a; c -= b; c ^= (b>>13);
+  a -= b; a -= c; a ^= (c>>12);
+  b -= c; b -= a; b ^= (a<<16);
+  c -= a; c -= b; c ^= (b>>5);
+  a -= b; a -= c; a ^= (c>>3);
+  b -= c; b -= a; b ^= (a<<10);
+  c -= a; c -= b; c ^= (b>>15);
+
+  return c;
+}
+
+__device__ float getNextRandom(const glm::ivec2 canvasSize, const uint32_t idx, uint32_t* consumedFloats, const float* floats, const uint32_t* scrambleConstants)
+{
+  uint32_t& consumed = consumedFloats[idx];
+
+  const uint32_t totalFloats = ((canvasSize.x*canvasSize.y + RANDOM_DIMENSIONS-1) / RANDOM_DIMENSIONS)*PREGEN_RANDS*RANDOM_DIMENSIONS;
+  const uint32_t scrambleConst = scrambleConstants[idx];
+
+  const float f = floats[(PREGEN_RANDS*idx+consumed++) % totalFloats];
+
+  const uint32_t i = mix(scrambleConst, idx, f * 4294967296);
+  const float rf = 2.3283064365386963e-10f * i;
+
+  return rf;
+}
+
 __device__ bool bboxIntersect(const AABB box, const float3 origin,
     const float3 inverseDirection, float& t)
 {
@@ -348,10 +378,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
   const Triangle triangle = triangles[result.triangleIdx];
   float3 hitNormal = triangle.normal();
-  uint32_t consumedRandoms = paths.randomNumbersConsumed[pathIdx];
 
   const float3 shadowRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
-  const uint32_t scrambleConstant = paths.scrambleConstants[pathIdx % canvasSize.x*canvasSize.y];
 
   float3 brightness = make_float3(0.f, 0.f, 0.f);
 
@@ -360,8 +388,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
     float pdf;
     float3 shadowPoint;
 
-	const float r0 = paths.randomFloats[(pathIdx + consumedRandoms++) % canvasSize.x*canvasSize.y];
-	const float r1 = paths.randomFloats[(pathIdx + consumedRandoms++) % canvasSize.x*canvasSize.y];
+	const float r0 = getNextRandom(canvasSize, pathIdx, paths.randomNumbersConsumed, paths.randomFloats, paths.scrambleConstants);
+	const float r1 = getNextRandom(canvasSize, pathIdx, paths.randomNumbersConsumed, paths.randomFloats, paths.scrambleConstants);
 
     triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, r0, r1);
 
@@ -399,8 +427,6 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
   paths.color[pathIdx] += fiteredEmission + filteredAmbient
       + brightness / lightTriangles * filteredDiffuse / CUDART_PI_F;
-
-  paths.randomNumbersConsumed[pathIdx] = consumedRandoms;
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -457,16 +483,14 @@ __global__ void createExtensionKernel(const glm::ivec2 canvasSize,
   const Triangle triangle = triangles[result.triangleIdx];
   const Material& material = materials[triangleMaterialIds[result.triangleIdx]];
   float3 hitNormal = triangle.normal();
-  uint32_t consumedRandoms = paths.randomNumbersConsumed[pathIdx];
-  const uint32_t scrambleConstant = paths.scrambleConstants[pathIdx];
 
   float33 B = getBasis(hitNormal);
   float3 extensionDir;
 
   do
   {
-	const float r0 = paths.randomFloats[(pathIdx + consumedRandoms++) % canvasSize.x*canvasSize.y];
-	const float r1 = paths.randomFloats[(pathIdx + consumedRandoms++) % canvasSize.x*canvasSize.y];
+	const float r0 = getNextRandom(canvasSize, pathIdx, paths.randomNumbersConsumed, paths.randomFloats, paths.scrambleConstants);
+	const float r1 = getNextRandom(canvasSize, pathIdx, paths.randomNumbersConsumed, paths.randomFloats, paths.scrambleConstants);
 
     extensionDir = make_float3(r0 * 2.0f - 1.0f, r1 * 2.0f - 1.0f, 0.f);
   } while ((extensionDir.x * extensionDir.x + extensionDir.y * extensionDir.y) >= 1);
@@ -487,8 +511,6 @@ __global__ void createExtensionKernel(const glm::ivec2 canvasSize,
   paths.throughput[pathIdx] = paths.throughput[pathIdx] * throughput;
   paths.p[pathIdx] *= p;
   paths.rayNr[pathIdx] += 1;
-
-  paths.randomNumbersConsumed[pathIdx] = consumedRandoms;
 }
 
 /*__global__ void
@@ -554,7 +576,7 @@ __global__ void resetAllPaths(Paths paths, Camera camera,
   paths.p[idx] = 1.f;
   paths.rayNr[idx] = 1;
   paths.pathNr[idx] = 1;
-  paths.randomNumbersConsumed[idx] = 0;
+  //paths.randomNumbersConsumed[idx] = 0;
 }
 
 __global__ void castRays(Paths paths, const glm::ivec2 canvasSize,
@@ -571,36 +593,6 @@ __global__ void castRays(Paths paths, const glm::ivec2 canvasSize,
   const Ray ray = paths.ray[idx];
   RaycastResult result = rayCast<HitType::CLOSEST>(ray, bvh, triangles, BIGT);
   paths.result[idx] = result;
-}
-
-__device__ uint32_t mix(uint32_t a, uint32_t b, uint32_t c)
-{
-  a -= b; a -= c; a ^= (c>>13);
-  b -= c; b -= a; b ^= (a<<8);
-  c -= a; c -= b; c ^= (b>>13);
-  a -= b; a -= c; a ^= (c>>12);
-  b -= c; b -= a; b ^= (a<<16);
-  c -= a; c -= b; c ^= (b>>5);
-  a -= b; a -= c; a ^= (c>>3);
-  b -= c; b -= a; b ^= (a<<10);
-  c -= a; c -= b; c ^= (b>>15);
-
-  return c;
-}
-
-__device__ float getNextRandom(const glm::ivec2 canvasSize, const uint32_t idx, uint32_t* consumedFloats, const float* floats, const uint32_t* scrambleConstants)
-{
-  uint32_t& consumed = consumedFloats[idx];
-
-  const uint32_t totalFloats = ((canvasSize.x*canvasSize.y + RANDOM_DIMENSIONS-1) / RANDOM_DIMENSIONS)*PREGEN_RANDS*RANDOM_DIMENSIONS;
-  const uint32_t scrambleConst = scrambleConstants[idx];
-
-  const float f = floats[(PREGEN_RANDS*idx+consumed++) % totalFloats];
-
-  const uint32_t i = mix(scrambleConst, idx, f * 4294967296);
-  const float rf = 2.3283064365386963e-10f * i;
-
-  return rf;
 }
 
 __global__ void
@@ -759,10 +751,10 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
    model.getDeviceTriangleMaterialIds(),
    model.getDeviceMaterials(),
    model.getDeviceBVH()
-   );*/
+   );
 
    CUDA_CHECK(cudaDeviceSynchronize());
-   *queues.specularQueueSize = 0;
+   *queues.specularQueueSize = 0;*/
 
   writeToCanvas<<<grid, block>>>(canvasSize, surfaceObj, paths);
 
