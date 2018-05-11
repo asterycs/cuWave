@@ -38,7 +38,7 @@ struct Triangle {
   {
     pdf = 1.0f / area();
 
-    point = (1.f-sqrt(x))*vertices[0].p + (sqrtf(x)*(1-y))*vertices[1].p + (y*sqrtf(x))*vertices[2].p;
+    point = (1.f-sqrtf(x))*vertices[0].p + (sqrtf(x)*(1-y))*vertices[1].p + (y*sqrtf(x))*vertices[2].p;
   }
 
   CUDA_FUNCTION Triangle& operator=(const Triangle& that) = default;

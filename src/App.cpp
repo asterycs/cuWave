@@ -199,6 +199,7 @@ void App::keyboardCallback(int key, int /*scancode*/, int action, int modifiers)
 
 void App::addLight()
 {
+  cudaRenderer.reset();
   const glm::mat4 v = camera.getView();
   const glm::mat4 tform = glm::inverse(v);
 
