@@ -10,6 +10,8 @@
 #include "Camera.hpp"
 #include "Model.hpp"
 
+#define PREGEN_RANDS 20
+
 struct Queues
 {
   uint32_t* extensionQueue;
@@ -135,9 +137,10 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
 
-    CUDA_CHECK(cudaMalloc((void**) &scrambleConstants, 2*size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &scrambleConstants,  size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &randomNumbersConsumed, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &randomFloats, size.x*size.y*sizeof(float)));
+    const int randomSizeMult = (size.x*size.y + 20000-1) / 20000;
+    CUDA_CHECK(cudaMalloc((void**) &randomFloats, PREGEN_RANDS*randomSizeMult*20000*sizeof(float)));
   }
 
   __host__ void release()
@@ -173,6 +176,8 @@ private:
 
   Queues queues;
   Paths paths;
+
+  uint32_t callcntr;
 
   curandGenerator_t rndGen;
 };

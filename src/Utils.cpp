@@ -72,15 +72,69 @@ void CheckCudaError(const char* call, const char* fname, int line)
     if (result_ != cudaSuccess) {
         std::cerr << "At: " << fname << ":" << line << std::endl \
            << " Cuda call: " << call << " Error: " << cudaGetErrorString(result_) << std::endl;
-        exit(1);
+        throw std::runtime_error("Error in CUDA call");
     }
 }
 
 void CheckCurandError(const curandStatus_t status, const char* fname, int line)
 {
     if (status != CURAND_STATUS_SUCCESS) {
-        std::cerr << "Curand error at: " << fname << ":" << line << std::endl;
-        exit(1);
+        std::cerr << "Curand error at: " << fname << ":" << line << " ";
+
+        switch (status)
+        {
+        	case CURAND_STATUS_VERSION_MISMATCH:
+				std::cerr << "Header file and linked library version do not match" << std::endl;
+				break;
+
+        	case CURAND_STATUS_NOT_INITIALIZED:
+				std::cerr << "Generator not initialized" << std::endl;
+				break;
+
+        	case CURAND_STATUS_ALLOCATION_FAILED:
+				std::cerr << "Memory allocation failed" << std::endl;
+				break;
+
+        	case CURAND_STATUS_TYPE_ERROR:
+				std::cerr << "Generator is wrong type" << std::endl;
+				break;
+
+        	case CURAND_STATUS_OUT_OF_RANGE:
+				std::cerr << "Argument out of range" << std::endl;
+				break;
+
+        	case CURAND_STATUS_LENGTH_NOT_MULTIPLE:
+				std::cerr << "Length requested is not a multple of dimension" << std::endl;
+				break;
+
+        	case CURAND_STATUS_DOUBLE_PRECISION_REQUIRED:
+        		std::cerr << "GPU does not have double precision required by MRG32k3a" << std::endl;
+        		break;
+
+        	case CURAND_STATUS_LAUNCH_FAILURE:
+        		std::cerr << "Kernel launch failure" << std::endl;
+        		break;
+
+        	case CURAND_STATUS_PREEXISTING_FAILURE:
+        		std::cerr << "Preexisting failure on library entry" << std::endl;
+        		break;
+
+        	case CURAND_STATUS_INITIALIZATION_FAILED:
+        		std::cerr << "Initialization of CUDA failed" << std::endl;
+        		break;
+
+        	case CURAND_STATUS_ARCH_MISMATCH:
+        		std::cerr << "Architecture mismatch, GPU does not support requested feature" << std::endl;
+        		break;
+
+        	case CURAND_STATUS_INTERNAL_ERROR:
+        		std::cerr << "Internal error" << std::endl;
+        		break;
+
+        	default:
+        		std::cerr << "Unknown error" << std::endl;
+        }
+        throw std::runtime_error("Error in cuRAND call");
     }
 }
 

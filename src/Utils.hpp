@@ -22,8 +22,8 @@
 
 #include <curand.h>
 
-#define WWIDTH 600
-#define WHEIGHT 600
+#define WWIDTH 640
+#define WHEIGHT 480
 
 class Triangle;
 class Model;
