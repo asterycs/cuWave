@@ -10,7 +10,8 @@
 #include "Camera.hpp"
 #include "Model.hpp"
 
-#define PREGEN_RANDS 20
+#define PREGEN_RANDS 1
+#define RANDOM_DIMENSIONS 20000
 
 struct Queues
 {
@@ -139,8 +140,8 @@ struct Paths
 
     CUDA_CHECK(cudaMalloc((void**) &scrambleConstants,  size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &randomNumbersConsumed, size.x*size.y*sizeof(uint32_t)));
-    const int randomSizeMult = (size.x*size.y + 20000-1) / 20000;
-    CUDA_CHECK(cudaMalloc((void**) &randomFloats, PREGEN_RANDS*randomSizeMult*20000*sizeof(float)));
+    const int randomSizeMult = (size.x*size.y + RANDOM_DIMENSIONS-1) / RANDOM_DIMENSIONS;
+    CUDA_CHECK(cudaMalloc((void**) &randomFloats, PREGEN_RANDS*randomSizeMult*RANDOM_DIMENSIONS*sizeof(float)));
   }
 
   __host__ void release()

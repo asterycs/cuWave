@@ -588,6 +588,21 @@ __device__ uint32_t mix(uint32_t a, uint32_t b, uint32_t c)
   return c;
 }
 
+__device__ float getNextRandom(const glm::ivec2 canvasSize, const uint32_t idx, uint32_t* consumedFloats, const float* floats, const uint32_t* scrambleConstants)
+{
+  uint32_t& consumed = consumedFloats[idx];
+
+  const uint32_t totalFloats = ((canvasSize.x*canvasSize.y + RANDOM_DIMENSIONS-1) / RANDOM_DIMENSIONS)*PREGEN_RANDS*RANDOM_DIMENSIONS;
+  const uint32_t scrambleConst = scrambleConstants[idx];
+
+  const float f = floats[(PREGEN_RANDS*idx+consumed++) % totalFloats];
+
+  const uint32_t i = mix(scrambleConst, idx, f * 4294967296);
+  const float rf = 2.3283064365386963e-10f * i;
+
+  return rf;
+}
+
 __global__ void
 testRnd(
     const cudaSurfaceObject_t canvas,
@@ -605,23 +620,13 @@ testRnd(
   if (x >= canvasSize.x || y >= canvasSize.y)
     return;
 
-  const uint32_t floatsSize = ((canvasSize.x*canvasSize.y + 20000-1) / 20000)*PREGEN_RANDS*20000;
-  const uint32_t scrambleConst = scrambleConstants[idx % canvasSize.x*canvasSize.y];
+  const float f0 = getNextRandom(canvasSize, idx, randomsConsumed, floats, scrambleConstants);
+  const float f1 = getNextRandom(canvasSize, idx, randomsConsumed, floats, scrambleConstants);
 
-  uint32_t consumed = randomsConsumed[idx];
-  const float f0 = floats[(PREGEN_RANDS*idx+consumed++) % floatsSize];
-  const float f1 = floats[(PREGEN_RANDS*idx+consumed++) % floatsSize];
-  const uint32_t i0 = mix(scrambleConst, idx, f0 * 4294967296);
-  const uint32_t i1 = mix(scrambleConst, idx, f1 * 4294967296);
-  const float rf0 = 2.3283064365386963e-10f * i0;
-  const float rf1 = 2.3283064365386963e-10f * i1;
+  if (f0 < 0.5f)
+	  return;
 
-
-  if (idx == 0)
-	  printf("%u %f %d\n", i0, f0, consumed);
-  randomsConsumed[idx] = consumed;
-
-  writeToCanvas(x, y, canvas, canvasSize, make_float3(rf0, rf1, 0.f));
+  writeToCanvas(x, y, canvas, canvasSize, make_float3(f0, f1, 0.f));
 
   return;
 }
@@ -645,7 +650,7 @@ void CudaRenderer::resize(const glm::ivec2 size)
   lastSize = size;
   callcntr = 0;
 
-  CURAND_CHECK(curandSetQuasiRandomGeneratorDimensions(rndGen, 20000));
+  CURAND_CHECK(curandSetQuasiRandomGeneratorDimensions(rndGen, RANDOM_DIMENSIONS));
 
   dim3 block(BLOCKWIDTH, BLOCKWIDTH);
   dim3 grid((size.x + block.x - 1) / block.x, (size.y + block.y - 1) / block.y);
@@ -654,6 +659,11 @@ void CudaRenderer::resize(const glm::ivec2 size)
 
   CUDA_CHECK(curandGetScrambleConstants32(&hostScrambleConstants32));
   CUDA_CHECK(cudaMemcpy(paths.scrambleConstants, hostScrambleConstants32, size.x*size.y, cudaMemcpyHostToDevice));
+
+  for (int offset = 0; offset < PREGEN_RANDS*size.x*size.y; offset += PREGEN_RANDS*RANDOM_DIMENSIONS)
+	  CURAND_CHECK(curandGenerateUniform(rndGen, paths.randomFloats+offset, PREGEN_RANDS*RANDOM_DIMENSIONS));
+
+  CUDA_CHECK(cudaMemset(paths.randomNumbersConsumed, 0, size.x*size.y*sizeof(uint32_t)));
 
   CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -704,28 +714,20 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 
   const dim3 block(BLOCKWIDTH, BLOCKWIDTH);
   const dim3 grid((canvasSize.x + block.x - 1) / block.x, (canvasSize.y + block.y - 1) / block.y);
-/*
+
   if (diffCamera != 0 || diffSize != 0)
   {
     lastCamera = camera;
 
     reset();
-  }*/
-
-  if (callcntr++ % 100000 == 0)
-  {
-	  for (int offset = 0; offset < PREGEN_RANDS*canvasSize.x*canvasSize.y; offset += PREGEN_RANDS*20000)
-		  CURAND_CHECK(curandGenerateUniform(rndGen, paths.randomFloats+offset, PREGEN_RANDS*20000));
-
-	  CUDA_CHECK(cudaMemset(paths.randomNumbersConsumed, 0, canvasSize.x*canvasSize.y*sizeof(uint32_t)));
   }
 
-  testRnd<<<grid, block>>>(surfaceObj,
+  /*testRnd<<<grid, block>>>(surfaceObj,
 		    canvasSize,
 		    paths.randomNumbersConsumed,
 		    paths.randomFloats,
-		    paths.scrambleConstants);
-/*
+		    paths.scrambleConstants);*/
+
 
   castRays<<<grid, block>>>(paths, canvasSize, model.getDeviceTriangles(),
       model.getDeviceBVH(), model.getDeviceMaterials(),
@@ -747,7 +749,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaMemset(queues.diffuseQueueSize, 0, sizeof(uint32_t)));
 
-  specularKernel<<<grid, block>>>(
+/*  specularKernel<<<grid, block>>>(
    canvasSize,
    queues,
    paths,
@@ -757,7 +759,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
    model.getDeviceTriangleMaterialIds(),
    model.getDeviceMaterials(),
    model.getDeviceBVH()
-   );
+   );*/
 
    CUDA_CHECK(cudaDeviceSynchronize());
    *queues.specularQueueSize = 0;
@@ -776,7 +778,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
   newPathsKernel<<<grid, block>>>(canvasSize, queues, paths, camera);
 
   CUDA_CHECK(cudaDeviceSynchronize());
-  CUDA_CHECK(cudaMemset(queues.newPathQueueSize, 0, sizeof(uint32_t)));*/
+  CUDA_CHECK(cudaMemset(queues.newPathQueueSize, 0, sizeof(uint32_t)));
 
   canvas.cudaUnmap();
 }
