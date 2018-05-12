@@ -80,7 +80,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
   }
 
 	Material lightMaterial;
-	lightMaterial.colorEmission = make_float3(400.f, 400.f, 400.f);
+	lightMaterial.colorEmission = make_float3(200.f, 200.f, 200.f);
 	materials.push_back(lightMaterial);
 
 	Material defaultMaterial;

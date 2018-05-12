@@ -10,7 +10,7 @@
 #include "Camera.hpp"
 #include "Model.hpp"
 
-#define PREGEN_RANDS 50
+#define PREGEN_RANDS 20
 
 __host__ __device__ int getRandomSizeMult(const glm::ivec2 size);
 
