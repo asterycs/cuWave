@@ -63,7 +63,6 @@ __device__ float getNextRandom(const glm::ivec2 canvasSize, const uint32_t idx,
 		const uint32_t* scrambleConstants)
 {
 	const uint32_t totalFloats = canvasSize.x * canvasSize.y * PREGEN_RANDS;
-	const uint32_t scrambleConst = scrambleConstants[idx];
 
 	const float f = floats[((PREGEN_RANDS * idx) + consumed) % totalFloats];
 
@@ -403,7 +402,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 	const Triangle triangle = triangles[result.triangleIdx];
 	float3 hitNormal = triangle.normal();
-	uint32_t consumed = paths.randomNumbersConsumed[pathIdx];
+	curandState_t rstate0 = paths.curandStatesX[pathIdx];
+	curandState_t rstate1 = paths.curandStatesY[pathIdx];
 
 	const float3 shadowRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
 
@@ -414,11 +414,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		float pdf;
 		float3 shadowPoint;
 
-		const float r0 = getNextRandom(canvasSize, pathIdx, consumed,
-				paths.randomFloatsX, paths.scrambleConstants);
-		const float r1 = getNextRandom(canvasSize, pathIdx, consumed,
-				paths.randomFloatsY, paths.scrambleConstants);
-		++consumed;
+		const float r0 = curand_uniform(&rstate0);
+		const float r1 = curand_uniform(&rstate1);
 
 		triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, r0, r1);
 
@@ -458,7 +455,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	paths.color[pathIdx] += fiteredEmission + filteredAmbient
 			+ brightness / lightTriangles * filteredDiffuse / CUDART_PI_F;
 
-	paths.randomNumbersConsumed[pathIdx] = consumed;
+	paths.curandStatesX[pathIdx] = rstate0;
+	paths.curandStatesY[pathIdx] = rstate1;
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -517,16 +515,16 @@ __global__ void createExtensionKernel(const glm::ivec2 canvasSize,
 	const Material& material =
 			materials[triangleMaterialIds[result.triangleIdx]];
 	float3 hitNormal = triangle.normal();
-	uint32_t consumed = paths.randomNumbersConsumed[pathIdx];
+	curandState_t rstate0 = paths.curandStatesX[pathIdx];
+	curandState_t rstate1 = paths.curandStatesY[pathIdx];
 
 	float33 B = getBasis(hitNormal);
 	float3 extensionDir;
 
 	do
 	{
-		const float r0 = getNextRandom(canvasSize, pathIdx, consumed, paths.randomFloatsX, paths.scrambleConstants);
-		const float r1 = getNextRandom(canvasSize, pathIdx, consumed, paths.randomFloatsY, paths.scrambleConstants);
-		++consumed;
+		const float r0 = curand_uniform(&rstate0);
+		const float r1 = curand_uniform(&rstate1);
 
 		extensionDir = make_float3(r0 * 2.0f - 1.0f, r1 * 2.0f - 1.0f, 0.f);
 	} while ((extensionDir.x * extensionDir.x + extensionDir.y * extensionDir.y) >= 1);
@@ -548,7 +546,8 @@ __global__ void createExtensionKernel(const glm::ivec2 canvasSize,
 	paths.throughput[pathIdx] = paths.throughput[pathIdx] * throughput;
 	paths.p[pathIdx] *= p;
 	paths.rayNr[pathIdx] += 1;
-	paths.randomNumbersConsumed[pathIdx] = consumed;
+	paths.curandStatesX[pathIdx] = rstate0;
+	paths.curandStatesY[pathIdx] = rstate1;
 }
 
 /*__global__ void
@@ -630,7 +629,7 @@ __global__ void castRays(Paths paths, const glm::ivec2 canvasSize,
 	paths.result[idx] = result;
 }
 
-__global__ void generateRandom(curandStateScrambledSobol32* state,
+__global__ void generateRandom(curandStateSobol32* state,
 		const glm::ivec2 size, const uint32_t nRands, float* output)
 {
 	const int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -639,7 +638,7 @@ __global__ void generateRandom(curandStateScrambledSobol32* state,
 	if (x >= size.x || y >= size.y)
 		return;
 
-	curandStateScrambledSobol32 localState = state[x + size.x * y];
+	curandStateSobol32 localState = state[x + size.x * y];
 
 	for (uint32_t i = 0; i < nRands; ++i)
 		output[nRands * (x + y * size.x) + i] = curand_uniform(&localState);
@@ -647,27 +646,19 @@ __global__ void generateRandom(curandStateScrambledSobol32* state,
 	state[x + size.x * y] = localState;
 }
 
-__global__ void initRand(const uint32_t offset, curandDirectionVectors32_t* sobolDirectionVectors,
-		uint32_t* sobolScrambleConstants, curandStateScrambledSobol32* state,
-		const glm::ivec2 size)
+__global__ void initRand(const int seq, curandState_t* const curandStateDevPtr, const glm::ivec2 size)
 {
-	const int x = threadIdx.x + blockIdx.x * blockDim.x;
-	const int y = threadIdx.y + blockIdx.y * blockDim.y;
+  const int x = threadIdx.x + blockIdx.x * blockDim.x;
+  const int y = threadIdx.y + blockIdx.y * blockDim.y;
 
-	if (x >= size.x || y >= size.y)
-		return;
+  if (x >= size.x || y >= size.y)
+    return;
 
-	const uint32_t scrIdx = x + size.x * y;
-	const uint32_t dirIdx = ((x + size.x * y)+offset) % 20000;
-
-	curandDirectionVectors32_t* dir = &sobolDirectionVectors[dirIdx];
-	uint32_t scr = sobolScrambleConstants[scrIdx];
-	curandStateScrambledSobol32 localState;
-
-	curand_init(*dir, scr, 0, &localState);
-
-	state[x + size.x * y] = localState;
+  curandState_t localState;
+  curand_init(x + y*size.x, seq, 0, &localState);
+  curandStateDevPtr[x + y * size.x] = localState;
 }
+
 
 void CudaRenderer::reset()
 {
@@ -693,32 +684,8 @@ void CudaRenderer::resize(const glm::ivec2 size)
 	dim3 grid((size.x + block.x - 1) / block.x,
 			(size.y + block.y - 1) / block.y);
 
-	curandStateDevVecX.resize(size.x * size.y);
-	curandStateDevVecY.resize(size.x * size.y);
-
-	auto* curandStateDevXRaw = thrust::raw_pointer_cast(&curandStateDevVecX[0]);
-	auto* curandStateDevYRaw = thrust::raw_pointer_cast(&curandStateDevVecY[0]);
-
-	curandDirectionVectors32_t* hostDirectionVectors32;
-	uint32_t* hostScrambleConstants32;
-
-	curandDirectionVectors32_t* devDirectionVectors32;
-	uint32_t* devScrambleConstants32;
-
-	CURAND_CHECK(curandGetDirectionVectors32(&hostDirectionVectors32, CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6));
-	CURAND_CHECK(curandGetScrambleConstants32(&hostScrambleConstants32));
-
-	CUDA_CHECK(cudaMalloc((void **) &(devDirectionVectors32), 20000 * sizeof(curandDirectionVectors32_t)));
-	CUDA_CHECK(cudaMemcpy(devDirectionVectors32, hostDirectionVectors32, 20000 * sizeof(curandDirectionVectors32_t), cudaMemcpyHostToDevice));
-
-	CUDA_CHECK(cudaMalloc((void **) &(devScrambleConstants32),	size.x * size.y * sizeof(uint32_t)));
-	CUDA_CHECK(cudaMemcpy(devScrambleConstants32, hostScrambleConstants32,	size.x * size.y * sizeof(uint32_t),	cudaMemcpyHostToDevice));
-
-	initRand<<<grid, block>>>(0, devDirectionVectors32, devScrambleConstants32, curandStateDevXRaw, size);
-	initRand<<<grid, block>>>(1, devDirectionVectors32, devScrambleConstants32, curandStateDevYRaw, size);
-
-	CUDA_CHECK(cudaFree(devDirectionVectors32));
-	CUDA_CHECK(cudaFree(devScrambleConstants32));
+	initRand<<<grid, block>>>(0, paths.curandStatesX, size);
+	initRand<<<grid, block>>>(5, paths.curandStatesY, size);
 
 	reset();
 }
@@ -770,18 +737,6 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 		lastCamera = camera;
 
 		reset();
-	}
-
-	if (this->callcntr % (PREGEN_RANDS/4) == 0)
-	{
-		auto* curandStateDevXRaw = thrust::raw_pointer_cast(&curandStateDevVecX[0]);
-		auto* curandStateDevYRaw = thrust::raw_pointer_cast(&curandStateDevVecY[0]);
-		generateRandom<<<grid, block>>>(curandStateDevXRaw, canvasSize, PREGEN_RANDS,	paths.randomFloatsX);
-		generateRandom<<<grid, block>>>(curandStateDevYRaw, canvasSize, PREGEN_RANDS,	paths.randomFloatsY);
-
-		CUDA_CHECK(cudaMemset(paths.randomNumbersConsumed, 0,canvasSize.x * canvasSize.y * sizeof(uint32_t)));
-
-		CUDA_CHECK(cudaDeviceSynchronize());
 	}
 
 	/*testRnd<<<grid, block>>>(surfaceObj,

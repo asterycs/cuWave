@@ -100,10 +100,8 @@ struct Paths
   uint32_t* pathNr;
   uint32_t* rayNr;
 
-  uint32_t* scrambleConstants;
-  uint32_t* randomNumbersConsumed;
-  float* randomFloatsX;
-  float* randomFloatsY;
+  curandState_t* curandStatesX;
+  curandState_t* curandStatesY;
 
   Paths(const Paths& other) = default;
 
@@ -118,10 +116,8 @@ struct Paths
     pathNr(nullptr),
     rayNr(nullptr),
 
-    scrambleConstants(nullptr),
-    randomNumbersConsumed(nullptr),
-    randomFloatsX(nullptr),
-    randomFloatsY(nullptr) {};
+    curandStatesX(nullptr),
+    curandStatesY(nullptr) {};
 
   ~Paths()
   {
@@ -140,11 +136,8 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &p, size.x*size.y*sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
-
-    CUDA_CHECK(cudaMalloc((void**) &scrambleConstants,  size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &randomNumbersConsumed, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &randomFloatsX, PREGEN_RANDS*size.x*size.y*sizeof(float)));
-    CUDA_CHECK(cudaMalloc((void**) &randomFloatsY, PREGEN_RANDS*size.x*size.y*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &curandStatesX, size.x*size.y*sizeof(curandState_t)));
+    CUDA_CHECK(cudaMalloc((void**) &curandStatesY, size.x*size.y*sizeof(curandState_t)));
   }
 
   __host__ void release()
@@ -157,11 +150,8 @@ struct Paths
     CUDA_CHECK(cudaFree(p));
     CUDA_CHECK(cudaFree(pathNr));
     CUDA_CHECK(cudaFree(rayNr));
-
-    CUDA_CHECK(cudaFree(scrambleConstants));
-    CUDA_CHECK(cudaFree(randomNumbersConsumed));
-    CUDA_CHECK(cudaFree(randomFloatsX));
-    CUDA_CHECK(cudaFree(randomFloatsY));
+    CUDA_CHECK(cudaFree(curandStatesX));
+    CUDA_CHECK(cudaFree(curandStatesY));
   }
 };
 
@@ -183,9 +173,6 @@ private:
   Paths paths;
 
   uint32_t callcntr;
-
-  thrust::device_vector<curandStateScrambledSobol32> curandStateDevVecX;
-  thrust::device_vector<curandStateScrambledSobol32> curandStateDevVecY;
 };
 
 #endif // CUDARENDERER_HPP
