@@ -34,11 +34,22 @@ struct Triangle {
 		vertices[2] = v2;
 	}
 
-  CUDA_DEVICE_FUNCTION void sample(float& pdf, float3& point, const float x, const float y) const
+  CUDA_DEVICE_FUNCTION void sample(float& pdf, float3& point, float x, float y) const
   {
     pdf = 1.0f / area();
 
-    point = (1.f-sqrtf(x))*vertices[0].p + (sqrtf(x)*(1-y))*vertices[1].p + (y*sqrtf(x))*vertices[2].p;
+    const float3 v0 = vertices[1].p - vertices[0].p;
+    const float3 v1 = vertices[2].p - vertices[0].p;
+
+    if (x + y > 1.f)
+    {
+    	if (x > y)
+    		x -= 0.5f;
+    	else
+    		y -= 0.5f;
+    }
+
+    point = vertices[0].p + x*v0 + y*v1;
   }
 
   CUDA_FUNCTION Triangle& operator=(const Triangle& that) = default;

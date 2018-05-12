@@ -10,8 +10,9 @@
 #include "Camera.hpp"
 #include "Model.hpp"
 
-#define PREGEN_RANDS 1
-#define RANDOM_DIMENSIONS 20000
+#define PREGEN_RANDS 50
+
+__host__ __device__ int getRandomSizeMult(const glm::ivec2 size);
 
 struct Queues
 {
@@ -101,7 +102,8 @@ struct Paths
 
   uint32_t* scrambleConstants;
   uint32_t* randomNumbersConsumed;
-  float* randomFloats;
+  float* randomFloatsX;
+  float* randomFloatsY;
 
   Paths(const Paths& other) = default;
 
@@ -118,7 +120,8 @@ struct Paths
 
     scrambleConstants(nullptr),
     randomNumbersConsumed(nullptr),
-    randomFloats(nullptr) {};
+    randomFloatsX(nullptr),
+    randomFloatsY(nullptr) {};
 
   ~Paths()
   {
@@ -140,8 +143,8 @@ struct Paths
 
     CUDA_CHECK(cudaMalloc((void**) &scrambleConstants,  size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &randomNumbersConsumed, size.x*size.y*sizeof(uint32_t)));
-    const int randomSizeMult = (size.x*size.y + RANDOM_DIMENSIONS-1) / RANDOM_DIMENSIONS;
-    CUDA_CHECK(cudaMalloc((void**) &randomFloats, PREGEN_RANDS*randomSizeMult*RANDOM_DIMENSIONS*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &randomFloatsX, PREGEN_RANDS*size.x*size.y*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &randomFloatsY, PREGEN_RANDS*size.x*size.y*sizeof(float)));
   }
 
   __host__ void release()
@@ -157,7 +160,8 @@ struct Paths
 
     CUDA_CHECK(cudaFree(scrambleConstants));
     CUDA_CHECK(cudaFree(randomNumbersConsumed));
-    CUDA_CHECK(cudaFree(randomFloats));
+    CUDA_CHECK(cudaFree(randomFloatsX));
+    CUDA_CHECK(cudaFree(randomFloatsY));
   }
 };
 
@@ -180,7 +184,8 @@ private:
 
   uint32_t callcntr;
 
-  curandGenerator_t rndGen;
+  thrust::device_vector<curandStateScrambledSobol32> curandStateDevVecX;
+  thrust::device_vector<curandStateScrambledSobol32> curandStateDevVecY;
 };
 
 #endif // CUDARENDERER_HPP
