@@ -47,6 +47,10 @@ Model ModelLoader::loadOBJ(const std::string& path)
     return Model();
   }
 
+  const float m = std::numeric_limits<float>::max();
+  float3 maxv = make_float3(-m,-m,-m);
+  float3 minv = make_float3(m,m,m);
+
   for (auto& tm : tinymaterials)
   {
     Material material;
@@ -60,12 +64,12 @@ Model ModelLoader::loadOBJ(const std::string& path)
 
     switch (tm.illum)
     {
-	default:
-		std::cerr << "Unknown shading mode for material" << std::endl;
-	case 2:
-	case 5:
-	case 7:
-		material.mode = static_cast<Material::ShadingMode>(tm.illum);
+		default:
+			std::cerr << "Unknown shading mode for material: " << tm.illum << std::endl;
+		case 2:
+		case 5:
+		case 7:
+			material.mode = static_cast<Material::ShadingMode>(tm.illum);
     }
 
     /*std::cout << "ambient: " << material.colorAmbient << std::endl;
@@ -80,7 +84,9 @@ Model ModelLoader::loadOBJ(const std::string& path)
   }
 
 	Material lightMaterial;
-	lightMaterial.colorEmission = make_float3(200.f, 200.f, 200.f);
+	lightMaterial.colorEmission = make_float3(300.f, 300.f, 300.f);
+	lightMaterial.colorAmbient = make_float3(1.f, 1.f, 1.f);
+	lightMaterial.colorDiffuse = make_float3(1.f, 1.f, 1.f);
 	materials.push_back(lightMaterial);
 
 	Material defaultMaterial;
@@ -107,7 +113,11 @@ Model ModelLoader::loadOBJ(const std::string& path)
         tinyobj::real_t vy = attrib.vertices[3*idx.vertex_index+1];
         tinyobj::real_t vz = attrib.vertices[3*idx.vertex_index+2];
 
-        triangle.vertices[v].p = make_float3(vx, vy, vz);
+        const float3 newv = make_float3(vx, vy, vz);
+        maxv = fmax(newv, maxv);
+        minv = fmin(newv, minv);
+
+        triangle.vertices[v].p = newv;
 
         if (idx.normal_index >= 0)
         {
@@ -150,6 +160,18 @@ Model ModelLoader::loadOBJ(const std::string& path)
       if (material.colorEmission.x != 0.f || material.colorEmission.y != 0.f || material.colorEmission.z != 0.f)
         lightTriangles.push_back(triangles.size() - 1);
     }
+  }
+
+  const float3 bbDiagonal = maxv - minv;
+  const float diagonalMaxComponent = fmax_compf(bbDiagonal);
+
+  for (auto& t : triangles)
+  {
+	  for (auto& v : t.vertices)
+	  {
+		  v.p += minv;
+		  v.p /= diagonalMaxComponent;
+	  }
   }
 
   std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;

@@ -25,7 +25,7 @@ CUDA_HOST_DEVICE float3 glm32float3(const glm::fvec3 g)
 	return make_float3(g.x, g.y, g.z);
 }
 
-void CheckOpenGLError(const char* call, const char* fname, int line)
+CUDA_HOST void CheckOpenGLError(const char* call, const char* fname, int line)
 {
   GLenum error = glGetError();
 
@@ -50,7 +50,7 @@ void CheckOpenGLError(const char* call, const char* fname, int line)
   }
 }
 
-void CheckILError(const char* call, const char* fname, int line)
+CUDA_HOST void CheckILError(const char* call, const char* fname, int line)
 {
   ILenum error = ilGetError();
 
@@ -66,7 +66,7 @@ void CheckILError(const char* call, const char* fname, int line)
   }
 }
 
-void CheckCudaError(const char* call, const char* fname, int line)
+CUDA_HOST void CheckCudaError(const char* call, const char* fname, int line)
 {
     cudaError_t result_ = cudaGetLastError();
     if (result_ != cudaSuccess) {
@@ -76,7 +76,7 @@ void CheckCudaError(const char* call, const char* fname, int line)
     }
 }
 
-void CheckCurandError(const curandStatus_t status, const char* fname, int line)
+CUDA_HOST void CheckCurandError(const curandStatus_t status, const char* fname, int line)
 {
     if (status != CURAND_STATUS_SUCCESS) {
         std::cerr << "Curand error at: " << fname << ":" << line << " ";
@@ -138,7 +138,7 @@ void CheckCurandError(const curandStatus_t status, const char* fname, int line)
     }
 }
 
-std::string readFile(const std::string& filePath) {
+CUDA_HOST std::string readFile(const std::string& filePath) {
     std::string content;
     std::ifstream fileStream(filePath, std::ios::in);
 
@@ -157,7 +157,7 @@ std::string readFile(const std::string& filePath) {
     return content;
 }
 
-bool fileExists(const std::string& filename)
+CUDA_HOST bool fileExists(const std::string& filename)
 {
     std::ifstream infile(filename);
     return infile.good();

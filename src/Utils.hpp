@@ -3,8 +3,10 @@
 
 #ifdef __CUDACC__
   #define CUDA_HOST_DEVICE __host__ __device__
+  #define CUDA_HOST __host__
 #else
   #define CUDA_HOST_DEVICE
+  #define CUDA_HOST
 #endif
 
 #include "glm/glm.hpp"
@@ -60,14 +62,14 @@ class Model;
   #define CURAND_CHECK(call) call
 #endif
 
-void CheckCurandError(const curandStatus_t, const char* fname, int line);
-void CheckCudaError(const char* stmt, const char* fname, int line);
-void CheckILError(const char* stmt, const char* fname, int line);
-void CheckOpenGLError(const char* call, const char* fname, int line);
+CUDA_HOST void CheckCurandError(const curandStatus_t, const char* fname, int line);
+CUDA_HOST void CheckCudaError(const char* stmt, const char* fname, int line);
+CUDA_HOST void CheckILError(const char* stmt, const char* fname, int line);
+CUDA_HOST void CheckOpenGLError(const char* call, const char* fname, int line);
 
-std::string readFile(const std::string& filePath);
+CUDA_HOST std::string readFile(const std::string& filePath);
 
-bool fileExists(const std::string& fileName);
+CUDA_HOST bool fileExists(const std::string& fileName);
 
 CUDA_HOST_DEVICE float3 glm42float3(const glm::fvec4 g);
 CUDA_HOST_DEVICE float3 glm32float3(const glm::fvec3 g);

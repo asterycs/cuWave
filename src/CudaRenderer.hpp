@@ -16,9 +16,6 @@ __host__ __device__ int getRandomSizeMult(const glm::ivec2 size);
 
 struct Queues
 {
-  uint32_t* extensionQueue;
-  uint32_t* extensionQueueSize;
-
   uint32_t* diffuseQueue;
   uint32_t* diffuseQueueSize;
 
@@ -30,8 +27,6 @@ struct Queues
 
   Queues()
   :
-    extensionQueue(nullptr),
-    extensionQueueSize(nullptr),
     diffuseQueue(nullptr),
     diffuseQueueSize(nullptr),
     specularQueue(nullptr),
@@ -50,9 +45,6 @@ struct Queues
   {
     release();
 
-    CUDA_CHECK(cudaMalloc((void**) &extensionQueue, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &extensionQueueSize, sizeof(uint32_t)));
-
     CUDA_CHECK(cudaMalloc((void**) &diffuseQueue, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &diffuseQueueSize, sizeof(uint32_t)));
 
@@ -70,8 +62,6 @@ struct Queues
 
   __host__ void release()
   {
-    CUDA_CHECK(cudaFree(extensionQueue));
-    CUDA_CHECK(cudaFree(extensionQueueSize));
     CUDA_CHECK(cudaFree(diffuseQueue));
     CUDA_CHECK(cudaFree(diffuseQueueSize));
     CUDA_CHECK(cudaFree(specularQueue));
@@ -82,7 +72,6 @@ struct Queues
 
   __host__ void reset()
   {
-    CUDA_CHECK(cudaMemset(extensionQueueSize, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(diffuseQueueSize, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(specularQueueSize, 0, sizeof(uint32_t)));
     CUDA_CHECK(cudaMemset(newPathQueueSize, 0, sizeof(uint32_t)));

@@ -41,13 +41,13 @@ struct Triangle {
     const float3 v0 = vertices[1].p - vertices[0].p;
     const float3 v1 = vertices[2].p - vertices[0].p;
 
-    /*if (x + y > 1.f)
+    if (x + y > 1.f)
     {
     	if (x > y)
     		x -= 0.5f;
     	else
     		y -= 0.5f;
-    }*/
+    }
 
     point = vertices[0].p + x*v0 + y*v1;
   }
