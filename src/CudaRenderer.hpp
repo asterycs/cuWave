@@ -100,6 +100,7 @@ struct Paths
   uint32_t* rayNr;
 
   float* floats;
+  uint32_t* scrambleConstants;
 
   Paths(const Paths& other) = default;
 
@@ -113,7 +114,8 @@ struct Paths
     pathNr(nullptr),
     rayNr(nullptr),
 
-    floats(nullptr) {};
+    floats(nullptr),
+    scrambleConstants(nullptr) {};
 
   ~Paths()
   {
@@ -132,6 +134,7 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &floats, 32*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &scrambleConstants, size.x*size.y*sizeof(uint32_t)));
   }
 
   __host__ void release()
@@ -144,6 +147,7 @@ struct Paths
     CUDA_CHECK(cudaFree(pathNr));
     CUDA_CHECK(cudaFree(rayNr));
     CUDA_CHECK(cudaFree(floats));
+    CUDA_CHECK(cudaFree(scrambleConstants));
   }
 };
 

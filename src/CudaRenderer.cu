@@ -29,51 +29,13 @@ template<class T> __device__ inline T& operator^= (T& a, T b) { return (T&)((int
 #define LEFT_HIT_BIT 0x80000000
 #define RIGHT_HIT_BIT 0x40000000
 
-__device__ uint32_t mix(uint32_t a, uint32_t b, uint32_t c)
+__device__ inline float scramble(const uint32_t scrambleConstant, const float f)
 {
-	a -= b;
-	a -= c;
-	a ^= (c >> 13);
-	b -= c;
-	b -= a;
-	b ^= (a << 8);
-	c -= a;
-	c -= b;
-	c ^= (b >> 13);
-	a -= b;
-	a -= c;
-	a ^= (c >> 12);
-	b -= c;
-	b -= a;
-	b ^= (a << 16);
-	c -= a;
-	c -= b;
-	c ^= (b >> 5);
-	a -= b;
-	a -= c;
-	a ^= (c >> 3);
-	b -= c;
-	b -= a;
-	b ^= (a << 10);
-	c -= a;
-	c -= b;
-	c ^= (b >> 15);
+	const uint32_t i = static_cast<uint32_t>(f * 0x100000000) ^ scrambleConstant;
 
-	return c;
-}
+	const float r = i * 2.3283064365386963e-10f;
 
-__device__ float getNextRandom(const glm::ivec2 canvasSize, const uint32_t idx,
-		uint32_t consumed, const float* floats,
-		const uint32_t* scrambleConstants)
-{
-	const uint32_t totalFloats = canvasSize.x * canvasSize.y * PREGEN_RANDS;
-
-	const float f = floats[((PREGEN_RANDS * idx) + consumed) % totalFloats];
-
-	//const uint32_t i = mix(scrambleConst, idx, f * 0x100000000);
-	//const float rf = 2.3283064365386963e-10f * i;
-
-	return f;
+	return r;
 }
 
 __device__ bool bboxIntersect(const AABB box, const float3 origin,
@@ -431,15 +393,13 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	if (idx >= *queues.diffuseQueueSize)
 		return;
 
-	const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 	const uint32_t pathIdx = queues.diffuseQueue[idx];
+	const uint32_t scrambleConstant = paths.scrambleConstants[pathIdx];
 
 	const RaycastResult result = paths.result[pathIdx];
 	const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 	const Ray ray = paths.ray[pathIdx];
-
-	const Triangle triangle = triangles[result.triangleIdx];
-	float3 hitNormal = triangle.normal();
+	const float3 hitNormal = triangles[result.triangleIdx].normal();
 
 	const float3 shadowRayOrigin = ray.origin + ray.direction*result.t + hitNormal * OFFSET_EPSILON;
 
@@ -450,8 +410,11 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		float pdf;
 		float3 shadowPoint;
 
-		const float r0 = paths.floats[1+2*i];
-		const float r1 = paths.floats[2+2*i];
+		float r0 = paths.floats[1+2*i];
+		float r1 = paths.floats[2+2*i];
+
+		r0 = scramble(scrambleConstant, r0);
+		r1 = scramble(scrambleConstant, r1);
 
 		triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, r0, r1);
 
@@ -526,7 +489,7 @@ inline __device__ float3 refractionDirection(const float cosInAng, const float s
 
 __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 		const Queues queues, const Paths paths, const Triangle* triangles,
-		const uint32_t* triangleMaterialIds, const Material* materials)
+		const uint32_t* triangleMaterialIds, const Material* materials, const uint32_t lightTriangles)
 {
 	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
 	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -536,6 +499,7 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 		return;
 
 	const uint32_t pathIdx = queues.diffuseQueue[idx];
+	const uint32_t scrambleConstant = paths.scrambleConstants[idx];
 
 	const Ray ray = paths.ray[pathIdx];
 	const RaycastResult result = paths.result[pathIdx];
@@ -545,10 +509,16 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 
 	float33 B = getBasis(hitNormal);
 
-	const float sinTheta = sqrtf(paths.floats[4]);
+	float r0 = paths.floats[1+2*lightTriangles];
+	float r1 = paths.floats[2+2*lightTriangles];
+
+	r0 = scramble(scrambleConstant, r0);
+	r1 = scramble(scrambleConstant, r1);
+
+	const float sinTheta = sqrtf(r0);
 	const float cosTheta = sqrtf(1-sinTheta*sinTheta);
 
-	const float psi = paths.floats[5]*2*CUDART_PI_F;
+	const float psi = r1*2*CUDART_PI_F;
 
 	float3 extensionDir = make_float3(sinTheta*cosf(psi), sinTheta*sinf(psi), cosTheta);
 
@@ -765,6 +735,11 @@ void CudaRenderer::resize(const glm::ivec2 size)
 	dim3 grid((size.x + block.x - 1) / block.x,
 			(size.y + block.y - 1) / block.y);
 
+	uint32_t* hostScrambleConstants;
+
+	CURAND_CHECK(curandGetScrambleConstants32(&hostScrambleConstants));
+	CUDA_CHECK(cudaMemcpy(paths.scrambleConstants, hostScrambleConstants, size.x * size.y * sizeof(uint32_t), cudaMemcpyHostToDevice));
+
 	reset();
 }
 
@@ -866,7 +841,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 
 	diffuseExtensionKernel<<<grid, block>>>(canvasSize, queues, paths,
 			model.getDeviceTriangles(), model.getDeviceTriangleMaterialIds(),
-			model.getDeviceMaterials());
+			model.getDeviceMaterials(), model.getNLights());
 
 	CUDA_CHECK(cudaDeviceSynchronize());
 	CUDA_CHECK(cudaMemset(queues.diffuseQueueSize, 0, sizeof(uint32_t)));
