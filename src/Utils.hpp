@@ -133,7 +133,7 @@ struct Ray
   float3 origin;
   float3 direction;
 
-  CUDA_HOST_DEVICE  Ray(const float3& o, const float3& d) : origin(o), direction(d) {};
+  CUDA_HOST_DEVICE  Ray(const float3 o, const float3 d) : origin(o), direction(d) {};
   CUDA_HOST_DEVICE  Ray() = default;
 };
 
@@ -141,26 +141,22 @@ struct RaycastResult {
   int triangleIdx;
   float t;
   float2 uv;
-  float3 point;
 
 
   CUDA_HOST_DEVICE  RaycastResult(const unsigned int i,
     const float t,
-    const float2& uv,
-    const float3& point)
+    const float2& uv)
     :
     triangleIdx(i),
     t(t),
-    uv(uv),
-    point(point)
+    uv(uv)
   {}
 
   CUDA_HOST_DEVICE  RaycastResult()
     :
     triangleIdx(-1),
     t(999999.f),
-    uv(),
-    point()
+    uv()
   {}
 
   CUDA_HOST_DEVICE  operator bool() const { return (triangleIdx != -1); }

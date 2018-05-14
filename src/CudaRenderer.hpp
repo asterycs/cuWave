@@ -99,8 +99,7 @@ struct Paths
   uint32_t* pathNr;
   uint32_t* rayNr;
 
-  curandState_t* curandStatesX;
-  curandState_t* curandStatesY;
+  float* floats;
 
   Paths(const Paths& other) = default;
 
@@ -114,8 +113,7 @@ struct Paths
     pathNr(nullptr),
     rayNr(nullptr),
 
-    curandStatesX(nullptr),
-    curandStatesY(nullptr) {};
+    floats(nullptr) {};
 
   ~Paths()
   {
@@ -133,8 +131,7 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &p, size.x*size.y*sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &curandStatesX, size.x*size.y*sizeof(curandState_t)));
-    CUDA_CHECK(cudaMalloc((void**) &curandStatesY, size.x*size.y*sizeof(curandState_t)));
+    CUDA_CHECK(cudaMalloc((void**) &floats, 32*sizeof(float)));
   }
 
   __host__ void release()
@@ -146,8 +143,7 @@ struct Paths
     CUDA_CHECK(cudaFree(p));
     CUDA_CHECK(cudaFree(pathNr));
     CUDA_CHECK(cudaFree(rayNr));
-    CUDA_CHECK(cudaFree(curandStatesX));
-    CUDA_CHECK(cudaFree(curandStatesY));
+    CUDA_CHECK(cudaFree(floats));
   }
 };
 
@@ -167,6 +163,8 @@ private:
 
   Queues queues;
   Paths paths;
+
+  curandGenerator_t randGen;
 
   uint32_t callcntr;
 };

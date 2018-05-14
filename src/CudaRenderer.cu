@@ -241,7 +241,6 @@ __device__ RaycastResult rayCast(const Ray ray, const Node* bvh,
 	if (minTriIdx == -1)
 		return result;
 
-	result.point = ray.origin + ray.direction * tMin;
 	result.t = tMin;
 	result.triangleIdx = minTriIdx;
 	result.uv = minUV;
@@ -281,7 +280,7 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 	if (x >= canvasSize.x || y >= canvasSize.y)
 		return;
 
-	curandState_t rstate0 = paths.curandStatesX[idx];
+	const float rf = paths.floats[0];
 
 	const RaycastResult result = paths.result[idx];
 	const uint32_t rayNr = paths.rayNr[idx];
@@ -306,7 +305,6 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 				const float diffuseTreshold = length(material.colorDiffuse) / total;
 				const float specularTreshold = diffuseTreshold + length(material.colorSpecular) / total;
 				const float transparentTreshold = diffuseTreshold + specularTreshold + length(material.colorTransparent) / total;
-				const float rf = curand_uniform(&rstate0);
 
 				if (rf < diffuseTreshold)
 				{
@@ -329,7 +327,6 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 				const float total = length(material.colorDiffuse) + length(material.colorSpecular);
 				const float diffuseTreshold = length(material.colorDiffuse) / total;
 				const float specularTreshold = diffuseTreshold + length(material.colorSpecular) / total;
-				const float rf = curand_uniform(&rstate0);
 
 				if (rf < diffuseTreshold)
 				{
@@ -348,9 +345,6 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 			queues.diffuseQueue[new_idx] = idx;
 			break;
 	}
-
-
-	paths.curandStatesX[idx] = rstate0;
 
 	return;
 }
@@ -433,32 +427,21 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
 	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
 	const uint32_t idx = x + y * canvasSize.x;
-	const uint32_t bIdx = threadIdx.x + blockDim.x * threadIdx.y;
-	const uint32_t offset = blockIdx.y * blockDim.y*canvasSize.x / BLOCKWIDTH*BLOCKWIDTH;
-
-	__shared__ curandState_t xrands[BLOCKWIDTH*BLOCKWIDTH];
-	__shared__ curandState_t yrands[BLOCKWIDTH*BLOCKWIDTH];
-
-	if (threadIdx.x == 0 && threadIdx.y == 0)
-	{
-		memcpy(xrands, paths.curandStatesX +offset, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
-		memcpy(yrands, paths.curandStatesY +offset, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
-	}
 
 	if (idx >= *queues.diffuseQueueSize)
 		return;
-
 
 	const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 	const uint32_t pathIdx = queues.diffuseQueue[idx];
 
 	const RaycastResult result = paths.result[pathIdx];
 	const Material material = materials[triangleMaterialIds[result.triangleIdx]];
+	const Ray ray = paths.ray[pathIdx];
 
 	const Triangle triangle = triangles[result.triangleIdx];
 	float3 hitNormal = triangle.normal();
 
-	const float3 shadowRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
+	const float3 shadowRayOrigin = ray.origin + ray.direction*result.t + hitNormal * OFFSET_EPSILON;
 
 	float3 brightness = make_float3(0.f, 0.f, 0.f);
 
@@ -467,8 +450,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		float pdf;
 		float3 shadowPoint;
 
-		const float r0 = curand_uniform(xrands + bIdx);
-		const float r1 = curand_uniform(yrands + bIdx);
+		const float r0 = paths.floats[1+2*i];
+		const float r1 = paths.floats[2+2*i];
 
 		triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, r0, r1);
 
@@ -494,15 +477,9 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	const float3 currentTroughput = paths.throughput[pathIdx];
 	const float3 filteredAmbient = currentTroughput * material.colorAmbient;
 	const float3 filteredDiffuse = currentTroughput * material.colorDiffuse;
-	const float3 fiteredEmission = currentTroughput * material.colorEmission;
+	const float3 fiteredEmission = currentTroughput * material.colorEmission; // TODO: Don't add this, light is sampled explicitly
 
 	paths.color[pathIdx] += fiteredEmission + filteredAmbient + brightness / lightTriangles * filteredDiffuse / CUDART_PI_F;
-
-	if (threadIdx.x == 0 && threadIdx.y == 0)
-	{
-		memcpy(paths.curandStatesX +offset, xrands, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
-		memcpy(paths.curandStatesY +offset, yrands, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
-	}
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -560,29 +537,24 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 
 	const uint32_t pathIdx = queues.diffuseQueue[idx];
 
+	const Ray ray = paths.ray[pathIdx];
 	const RaycastResult result = paths.result[pathIdx];
 	const Triangle triangle = triangles[result.triangleIdx];
 	const Material& material = materials[triangleMaterialIds[result.triangleIdx]];
 	float3 hitNormal = triangle.normal();
-	curandState_t rstate0 = paths.curandStatesX[pathIdx];
-	curandState_t rstate1 = paths.curandStatesY[pathIdx];
 
 	float33 B = getBasis(hitNormal);
-	float3 extensionDir;
 
-	do
-	{
-		const float r0 = curand_uniform(&rstate0);
-		const float r1 = curand_uniform(&rstate1);
+	const float sinTheta = sqrtf(paths.floats[4]);
+	const float cosTheta = sqrtf(1-sinTheta*sinTheta);
 
-		extensionDir = make_float3(r0 * 2.0f - 1.0f, r1 * 2.0f - 1.0f, 0.f);
-	} while ((extensionDir.x * extensionDir.x + extensionDir.y * extensionDir.y)
-			>= 1);
+	const float psi = paths.floats[5]*2*CUDART_PI_F;
 
-	extensionDir.z = sqrt(1 - extensionDir.x * extensionDir.x - extensionDir.y * extensionDir.y);
+	float3 extensionDir = make_float3(sinTheta*cosf(psi), sinTheta*sinf(psi), cosTheta);
+
 	extensionDir = B * extensionDir;
 	extensionDir = normalize(extensionDir); // Unnecessary
-	const float3 extensionOrig = result.point + OFFSET_EPSILON * hitNormal;
+	const float3 extensionOrig = ray.origin + ray.direction*result.t + OFFSET_EPSILON * hitNormal;
 	const Ray extensionRay(extensionOrig, extensionDir);
 
 	float cosO = dot(extensionDir, hitNormal);
@@ -593,8 +565,6 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 	paths.throughput[pathIdx] = paths.throughput[pathIdx] * throughput;
 	paths.p[pathIdx] *= p;
 	paths.rayNr[pathIdx] += 1;
-	paths.curandStatesX[pathIdx] = rstate0;
-	paths.curandStatesY[pathIdx] = rstate1;
 }
 
 __global__ void
@@ -624,7 +594,7 @@ __global__ void
 	 const Triangle triangle = triangles[hitResult.triangleIdx];
 	 const float3 hitNormal = triangle.normal(hitResult.uv);
 
-	 const float3 reflectionRayOrigin = hitResult.point + hitNormal * OFFSET_EPSILON;
+	 const float3 reflectionRayOrigin = hitRay.origin + hitRay.direction*hitResult.t + hitNormal * OFFSET_EPSILON;
 	 const float3 reflectionRayDir = reflectionDirection(hitNormal, hitRay.direction);
 
 	 const Ray reflectionRay(reflectionRayOrigin, reflectionRayDir);
@@ -682,7 +652,7 @@ __global__ void
      {
 		const float sin2t = fabs((idx1 / idx2) * (idx1 / idx2) * (1 - cosi * cosi));
 
-		const float3 transOrig = hitResult.point - hitNormal * OFFSET_EPSILON;
+		const float3 transOrig = hitRay.origin + hitRay.direction*hitResult.t - hitNormal * OFFSET_EPSILON;
 		const float3 transDir = refractionDirection(cosi, sin2t, hitNormal, hitRay.direction, idx1, idx2);
 
 		paths.ray[pathIdx] = Ray(transOrig, transDir);
@@ -690,7 +660,7 @@ __global__ void
 		paths.rayNr[pathIdx] += 1;
      }else
      {
-		const float3 reflectionRayOrigin = hitResult.point + hitNormal * OFFSET_EPSILON;
+		const float3 reflectionRayOrigin = hitRay.origin + hitRay.direction*hitResult.t + hitNormal * OFFSET_EPSILON;
 		const float3 reflectionRayDir = reflectionDirection(hitNormal, hitRay.direction);
 
 		const Ray reflectionRay(reflectionRayOrigin, reflectionRayDir);
@@ -795,9 +765,6 @@ void CudaRenderer::resize(const glm::ivec2 size)
 	dim3 grid((size.x + block.x - 1) / block.x,
 			(size.y + block.y - 1) / block.y);
 
-	initRand<<<grid, block>>>(0, paths.curandStatesX, size);
-	initRand<<<grid, block>>>(5, paths.curandStatesY, size);
-
 	reset();
 }
 
@@ -813,6 +780,10 @@ CudaRenderer::CudaRenderer() :
 
 	if (cudaDeviceCount < 1)
 		throw std::runtime_error("No CUDA devices available");
+
+
+	CURAND_CHECK(curandCreateGenerator(&randGen, CURAND_RNG_QUASI_SOBOL32));
+	CURAND_CHECK(curandSetQuasiRandomGeneratorDimensions(randGen, 32));
 
 	CUDA_CHECK(cudaSetDevice(cudaDevices[0]));
 
@@ -846,6 +817,8 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 
 		reset();
 	}
+
+    CURAND_CHECK(curandGenerateUniform(randGen, paths.floats, 32));
 
 	castRays<<<grid, block>>>(paths, canvasSize, model.getDeviceTriangles(),
 			model.getDeviceBVH(), model.getDeviceMaterials(),
