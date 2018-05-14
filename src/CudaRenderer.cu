@@ -270,7 +270,7 @@ __device__ float3 readFromCanvas(const uint32_t x, const uint32_t y,
 
 __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 		Paths paths, const Material* materials,
-		const uint32_t* triangleMaterialIds, const Triangle* triangles)
+		const uint32_t* triangleMaterialIds)
 {
 	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
 	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -318,36 +318,11 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 					 queues.specularQueue[new_idx] = idx;
 				}else
 				{
-					 float rat;
-					 const Triangle triangle = triangles[result.triangleIdx];
-					 const Ray ray = paths.ray[idx];
-					 float3 hitNormal = triangle.normal(result.uv);
-
-				     const bool outside = dot(ray.direction, hitNormal) < 0.f;
-
-				     if (outside)
-				       rat = material.refractionIndex / AIR_INDEX;
-				     else
-				     {
-				       rat = AIR_INDEX / material.refractionIndex;
-				       hitNormal = -hitNormal;
-				     }
-
-				     const float cosi = fabsf(dot(ray.direction, hitNormal));
-
-				     if (sinf(acosf(cosi)) <= rat)
-				     {
-						 new_idx = atomicAdd(queues.transparentQueueSize, 1);
-						 queues.transparentQueue[new_idx] = idx;
-				     }else  // Total internal reflection
-				     {
-						 new_idx = atomicAdd(queues.specularQueueSize, 1);
-						 queues.specularQueue[new_idx] = idx;
-				     }
+					 new_idx = atomicAdd(queues.transparentQueueSize, 1);
+					 queues.transparentQueue[new_idx] = idx;
 				}
 			}
 			break;
-
 
 		case (Material::REFLECTION_FRESNEL):
 			{
@@ -392,12 +367,11 @@ __global__ void writeToCanvas(const glm::ivec2 canvasSize,
 
 	const uint32_t currentPath = paths.pathNr[idx];
 	const float3 newColor = paths.color[idx];
-	const uint2 pixel = paths.pixel[idx];
-	float3 oldColor = readFromCanvas(pixel.x, pixel.y, canvas, canvasSize);
+	float3 oldColor = readFromCanvas(x, y, canvas, canvasSize);
 	float3 blend = static_cast<float>(currentPath - 1) / currentPath * oldColor
 			+ 1.f / currentPath * newColor;
 
-	writeToCanvas(pixel.x, pixel.y, canvas, canvasSize, blend);
+	writeToCanvas(x, y, canvas, canvasSize, blend);
 }
 
 typedef struct
@@ -459,20 +433,30 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
 	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
 	const uint32_t idx = x + y * canvasSize.x;
+	const uint32_t bIdx = threadIdx.x + blockDim.x * threadIdx.y;
+	const uint32_t offset = blockIdx.y * blockDim.y*canvasSize.x / BLOCKWIDTH*BLOCKWIDTH;
+
+	__shared__ curandState_t xrands[BLOCKWIDTH*BLOCKWIDTH];
+	__shared__ curandState_t yrands[BLOCKWIDTH*BLOCKWIDTH];
+
+	if (threadIdx.x == 0 && threadIdx.y == 0)
+	{
+		memcpy(xrands, paths.curandStatesX +offset, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
+		memcpy(yrands, paths.curandStatesY +offset, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
+	}
 
 	if (idx >= *queues.diffuseQueueSize)
 		return;
 
+
 	const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 	const uint32_t pathIdx = queues.diffuseQueue[idx];
 
-	const RaycastResult& result = paths.result[pathIdx];
-	const Material& material = materials[triangleMaterialIds[result.triangleIdx]];
+	const RaycastResult result = paths.result[pathIdx];
+	const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 
 	const Triangle triangle = triangles[result.triangleIdx];
 	float3 hitNormal = triangle.normal();
-	curandState_t rstate0 = paths.curandStatesX[pathIdx];
-	curandState_t rstate1 = paths.curandStatesY[pathIdx];
 
 	const float3 shadowRayOrigin = result.point + hitNormal * OFFSET_EPSILON;
 
@@ -483,8 +467,8 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		float pdf;
 		float3 shadowPoint;
 
-		const float r0 = curand_uniform(&rstate0);
-		const float r1 = curand_uniform(&rstate1);
+		const float r0 = curand_uniform(xrands + bIdx);
+		const float r1 = curand_uniform(yrands + bIdx);
 
 		triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, r0, r1);
 
@@ -514,8 +498,11 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 	paths.color[pathIdx] += fiteredEmission + filteredAmbient + brightness / lightTriangles * filteredDiffuse / CUDART_PI_F;
 
-	paths.curandStatesX[pathIdx] = rstate0;
-	paths.curandStatesY[pathIdx] = rstate1;
+	if (threadIdx.x == 0 && threadIdx.y == 0)
+	{
+		memcpy(paths.curandStatesX +offset, xrands, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
+		memcpy(paths.curandStatesY +offset, yrands, BLOCKWIDTH*BLOCKWIDTH*sizeof(curandState_t));
+	}
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -529,10 +516,12 @@ __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
 		return;
 
 	const uint32_t pathIdx = queues.newPathQueue[idx];
-	const uint2 pixel = paths.pixel[pathIdx];
+
+	const uint32_t xCoordinate = pathIdx % canvasSize.x;
+	const uint32_t yCoordinate = pathIdx / canvasSize.x;
 
 	const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(
-			pixel.x, pixel.y, canvasSize);
+			xCoordinate, yCoordinate, canvasSize);
 	const Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x) / canvasSize.y);
 
 	paths.ray[pathIdx] = ray;
@@ -655,48 +644,61 @@ __global__ void
 	 const Material* materials
 	 )
  {
-	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
-	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
-	const uint32_t idx = x + y * canvasSize.x;
+	 const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
+	 const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+	 const uint32_t idx = x + y * canvasSize.x;
 
-	if (idx >= *queues.transparentQueueSize)
-	 return;
+	 if (idx >= *queues.transparentQueueSize)
+		 return;
 
-	const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
-	const uint32_t pathIdx = queues.transparentQueue[idx];
+	 const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
+	 const uint32_t pathIdx = queues.transparentQueue[idx];
 
-	const Ray hitRay = paths.ray[pathIdx];
-	const RaycastResult hitResult = paths.result[pathIdx];
+	 const Ray hitRay = paths.ray[pathIdx];
+	 const RaycastResult hitResult = paths.result[pathIdx];
 
-	const Triangle triangle = triangles[hitResult.triangleIdx];
-	float3 hitNormal = triangle.normal(hitResult.uv);
-	const Material material = materials[triangleMaterialIds[hitResult.triangleIdx]];
+	 const Triangle triangle = triangles[hitResult.triangleIdx];
+	 float3 hitNormal = triangle.normal(hitResult.uv);
+	 const Material material = materials[triangleMaterialIds[hitResult.triangleIdx]];
 
-	const float idx1 = AIR_INDEX;
-	const float idx2 = material.refractionIndex;
+     const float idx1 = AIR_INDEX;
+     const float idx2 = material.refractionIndex;
 
-	float rat;
+     float rat;
 
-	const bool outside = dot(hitRay.direction, hitNormal) < 0.f;
+     const bool outside = dot(hitRay.direction, hitNormal) < 0.f;
 
-	if (outside)
-		rat = idx2 / idx1;
-	else
-	{
-		rat = idx1 / idx2;
-		hitNormal = -hitNormal;
-	}
+     if (outside)
+       rat = idx2 / idx1;
+     else
+     {
+       rat = idx1 / idx2;
+       hitNormal = -hitNormal;
+     }
 
-	const float cosi = fabsf(dot(hitRay.direction, hitNormal));
+     const float cosi = fabsf(dot(hitRay.direction, hitNormal));
 
-	const float sin2t = fabs((idx1 / idx2) * (idx1 / idx2) * (1 - cosi * cosi));
+     if (sinf(acosf(cosi)) <= rat) // Check for total internal reflection
+     {
+		const float sin2t = fabs((idx1 / idx2) * (idx1 / idx2) * (1 - cosi * cosi));
 
-	const float3 transOrig = hitResult.point - hitNormal * OFFSET_EPSILON;
-	const float3 transDir = refractionDirection(cosi, sin2t, hitNormal, hitRay.direction, idx1, idx2);
+		const float3 transOrig = hitResult.point - hitNormal * OFFSET_EPSILON;
+		const float3 transDir = refractionDirection(cosi, sin2t, hitNormal, hitRay.direction, idx1, idx2);
 
-	paths.ray[pathIdx] = Ray(transOrig, transDir);
-	paths.throughput[pathIdx] = paths.throughput[pathIdx] * (make_float3(1.f, 1.f, 1.f) - material.colorTransparent);
-	paths.rayNr[pathIdx] += 1;
+		paths.ray[pathIdx] = Ray(transOrig, transDir);
+		paths.throughput[pathIdx] = paths.throughput[pathIdx] * material.colorTransparent;
+		paths.rayNr[pathIdx] += 1;
+     }else
+     {
+		const float3 reflectionRayOrigin = hitResult.point + hitNormal * OFFSET_EPSILON;
+		const float3 reflectionRayDir = reflectionDirection(hitNormal, hitRay.direction);
+
+		const Ray reflectionRay(reflectionRayOrigin, reflectionRayDir);
+
+		paths.ray[pathIdx] = reflectionRay;
+		paths.throughput[pathIdx] = paths.throughput[pathIdx] * material.colorSpecular;
+		paths.rayNr[pathIdx] += 1;
+     }
  }
 
 __global__ void resetAllPaths(Paths paths, Camera camera,
@@ -717,7 +719,6 @@ __global__ void resetAllPaths(Paths paths, Camera camera,
 	paths.ray[idx] = ray;
 	paths.color[idx] = make_float3(0.f, 0.f, 0.f);
 	paths.throughput[idx] = make_float3(1.f, 1.f, 1.f);
-	paths.pixel[idx] = make_uint2(x, y);
 	paths.p[idx] = 1.f;
 	paths.rayNr[idx] = 1;
 	paths.pathNr[idx] = 1;
@@ -811,10 +812,7 @@ CudaRenderer::CudaRenderer() :
 			cudaGLDeviceListCurrentFrame);
 
 	if (cudaDeviceCount < 1)
-	{
-		std::cout << "No CUDA devices found" << std::endl;
 		throw std::runtime_error("No CUDA devices available");
-	}
 
 	CUDA_CHECK(cudaSetDevice(cudaDevices[0]));
 
@@ -856,7 +854,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	logicKernel<<<grid, block>>>(canvasSize, queues, paths,
-			model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds(), model.getDeviceTriangles());
+			model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
 
 	CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -867,14 +865,14 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 
 	CUDA_CHECK(cudaDeviceSynchronize());
 
-	/*specularKernel<<<grid, block>>>(
+	specularKernel<<<grid, block>>>(
 		canvasSize,
 		queues,
 		paths,
 		model.getDeviceTriangles(),
 		model.getDeviceTriangleMaterialIds(),
 		model.getDeviceMaterials()
-	 );*/
+	);
 
 	 CUDA_CHECK(cudaDeviceSynchronize());
 	 CUDA_CHECK(cudaMemset(queues.specularQueueSize, 0, sizeof(uint32_t)));

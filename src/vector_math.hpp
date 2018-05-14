@@ -333,6 +333,11 @@ inline __host__ __device__ float length(const float3 v)
   return sqrtf(dot(v, v));
 }
 
+inline __host__ __device__ float3 sqrt(const float3 v)
+{
+  return make_float3(sqrtf(v.x), sqrtf(v.y), sqrtf(v.z));
+}
+
 inline __host__ __device__ float3 normalize(const float3 v)
 {
   float invLen = rsqrtf(dot(v, v));

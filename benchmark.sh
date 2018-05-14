@@ -1,12 +1,11 @@
 #!/bin/bash
 
 SCENEFILE="$1"
-RENDERER="$2"
-PATHS="$3"
-if [ -z "$PATHS" ]; then
+RUNS="$2"
+if [ -z "$RUNS" ]; then
   PATHS=1
 fi
-OUT=$(./graphx -b -s "$SCENEFILE" -o out.png -r "$RENDERER" -p "$PATHS")
+OUT=$(./wavy -b -s "$SCENEFILE" -o out.png -p "$RUNS")
 
 TIME=$(echo "$OUT" | grep "Rendering time" | awk '{print $NF}')
 

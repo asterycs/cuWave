@@ -92,7 +92,6 @@ struct Queues
 struct Paths
 {
   Ray* ray;
-  uint2* pixel;
   RaycastResult* result;
   float3* color;
   float3* throughput;
@@ -108,7 +107,6 @@ struct Paths
   Paths()
   :
     ray(nullptr),
-    pixel(nullptr),
     result(nullptr),
     color(nullptr),
     throughput(nullptr),
@@ -129,7 +127,6 @@ struct Paths
     release();
 
     CUDA_CHECK(cudaMalloc((void**) &ray, size.x*size.y*sizeof(Ray)));
-    CUDA_CHECK(cudaMalloc((void**) &pixel, size.x*size.y*sizeof(uint2)));
     CUDA_CHECK(cudaMalloc((void**) &result, size.x*size.y*sizeof(RaycastResult)));
     CUDA_CHECK(cudaMalloc((void**) &color, size.x*size.y*sizeof(float3)));
     CUDA_CHECK(cudaMalloc((void**) &throughput, size.x*size.y*sizeof(float3)));
@@ -143,7 +140,6 @@ struct Paths
   __host__ void release()
   {
     CUDA_CHECK(cudaFree(ray));
-    CUDA_CHECK(cudaFree(pixel));
     CUDA_CHECK(cudaFree(result));
     CUDA_CHECK(cudaFree(color));
     CUDA_CHECK(cudaFree(throughput));

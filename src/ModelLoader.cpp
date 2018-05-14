@@ -59,7 +59,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
     material.colorDiffuse = make_float3(tm.diffuse[0], tm.diffuse[1], tm.diffuse[2]);
     material.colorSpecular = make_float3(tm.specular[0], tm.specular[1], tm.specular[2]);
     material.colorEmission = make_float3(tm.emission[0], tm.emission[1], tm.emission[2]);
-    material.colorTransparent = make_float3(tm.transmittance[0], tm.transmittance[1], tm.transmittance[2]);
+    material.colorTransparent = make_float3(1-sqrtf(tm.transmittance[0]), 1-sqrtf(tm.transmittance[1]), 1-sqrtf(tm.transmittance[2]));
     material.refractionIndex = tm.ior;
 
     switch (tm.illum)
@@ -71,7 +71,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
 		case 7:
 			material.mode = static_cast<Material::ShadingMode>(tm.illum);
     }
-
+/*
     std::cout << "ambient: " << material.colorAmbient << std::endl;
     std::cout << "diffuse: " << material.colorDiffuse << std::endl;
     std::cout << "specular: " << material.colorSpecular << std::endl;
@@ -79,7 +79,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
     std::cout << "transparent: " << material.colorTransparent << std::endl;
     std::cout << "refractionIndex: " << material.refractionIndex << std::endl;
     std::cout << "mode: " << material.mode << std::endl << std::endl;
-
+*/
     materials.push_back(material);
   }
 
