@@ -22,6 +22,9 @@ struct Queues
   uint32_t* specularQueue;
   uint32_t* specularQueueSize;
 
+  uint32_t* transparentQueue;
+  uint32_t* transparentQueueSize;
+
   uint32_t* newPathQueue;
   uint32_t* newPathQueueSize;
 
@@ -31,6 +34,8 @@ struct Queues
     diffuseQueueSize(nullptr),
     specularQueue(nullptr),
     specularQueueSize(nullptr),
+    transparentQueue(nullptr),
+    transparentQueueSize(nullptr),
     newPathQueue(nullptr),
     newPathQueueSize(nullptr) {};
 
@@ -51,6 +56,9 @@ struct Queues
     CUDA_CHECK(cudaMalloc((void**) &specularQueue, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &specularQueueSize, sizeof(uint32_t)));
 
+    CUDA_CHECK(cudaMalloc((void**) &transparentQueue, size.x*size.y*sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc((void**) &transparentQueueSize, sizeof(uint32_t)));
+
     CUDA_CHECK(cudaMalloc((void**) &newPathQueue, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &newPathQueueSize, sizeof(uint32_t)));
 
@@ -66,15 +74,18 @@ struct Queues
     CUDA_CHECK(cudaFree(diffuseQueueSize));
     CUDA_CHECK(cudaFree(specularQueue));
     CUDA_CHECK(cudaFree(specularQueueSize));
+    CUDA_CHECK(cudaFree(transparentQueue));
+    CUDA_CHECK(cudaFree(transparentQueueSize));
     CUDA_CHECK(cudaFree(newPathQueue));
     CUDA_CHECK(cudaFree(newPathQueueSize));
   }
 
   __host__ void reset()
   {
-    CUDA_CHECK(cudaMemset(diffuseQueueSize, 0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(specularQueueSize, 0, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(newPathQueueSize, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(diffuseQueueSize,     0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(specularQueueSize,    0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(transparentQueueSize, 0, sizeof(uint32_t)));
+    CUDA_CHECK(cudaMemset(newPathQueueSize,     0, sizeof(uint32_t)));
   }
 };
 

@@ -72,13 +72,13 @@ Model ModelLoader::loadOBJ(const std::string& path)
 			material.mode = static_cast<Material::ShadingMode>(tm.illum);
     }
 
-    /*std::cout << "ambient: " << material.colorAmbient << std::endl;
+    std::cout << "ambient: " << material.colorAmbient << std::endl;
     std::cout << "diffuse: " << material.colorDiffuse << std::endl;
     std::cout << "specular: " << material.colorSpecular << std::endl;
     std::cout << "emission: " << material.colorEmission << std::endl;
     std::cout << "transparent: " << material.colorTransparent << std::endl;
     std::cout << "refractionIndex: " << material.refractionIndex << std::endl;
-    std::cout << "mode: " << material.mode << std::endl << std::endl;*/
+    std::cout << "mode: " << material.mode << std::endl << std::endl;
 
     materials.push_back(material);
   }
