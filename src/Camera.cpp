@@ -48,43 +48,43 @@ CUDA_HOST_DEVICE const glm::fvec3 Camera::getForward() const
   return glm::normalize(glm::fvec3(forward));
 }
 
-CUDA_HOST_DEVICE const glm::fmat4 Camera::getView() const
+CUDA_HOST const glm::fmat4 Camera::getView() const
 {
   glm::fmat4 v = glm::lookAt(position, position + getForward(), getUp());
 
   return v;
 }
 
-CUDA_HOST_DEVICE const glm::fvec3 Camera::getUp() const
+CUDA_HOST const glm::fvec3 Camera::getUp() const
 {
   return glm::normalize(glm::cross(getForward(), getLeft()));
 }
 
-CUDA_HOST_DEVICE void Camera::rotate(const glm::fvec2& r, const float dTime)
+CUDA_HOST void Camera::rotate(const glm::fvec2 r, const float dTime)
 {
   hAngle += r.y * mouseSpeed * dTime;
   vAngle += r.x * mouseSpeed * dTime;
 }
 
-CUDA_HOST_DEVICE void Camera::translate(const glm::fvec3& t, const float dTime)
+CUDA_HOST void Camera::translate(const glm::fvec3 t, const float dTime)
 {
   position = position + dTime * moveSpeed * glm::fvec3(t.x) * getLeft()
       + dTime * moveSpeed * glm::fvec3(t.y) * getForward()
       + dTime * moveSpeed * glm::fvec3(t.z) * getUp();
 }
 
-CUDA_HOST_DEVICE const glm::fvec3& Camera::getPosition() const
+CUDA_HOST_DEVICE const glm::fvec3 Camera::getPosition() const
 {
   return position;
 }
 
-CUDA_HOST_DEVICE void Camera::increaseFOV()
+CUDA_HOST void Camera::increaseFOV()
 {
   if (fov < glm::half_pi<float>())
     fov += 0.025f;
 }
 
-CUDA_HOST_DEVICE void Camera::decreaseFOV()
+CUDA_HOST void Camera::decreaseFOV()
 {
   if (fov > 0.f)
     fov -= 0.025f;
@@ -101,7 +101,7 @@ CUDA_HOST_DEVICE Ray Camera::generateRay(const glm::fvec2& point, const float as
   return Ray(glm32float3(position), glm32float3(normalize(d)));
 }
 
-CUDA_HOST_DEVICE glm::fvec3 Camera::worldPositionFromNormalizedImageCoordinate(const glm::fvec2& point, const float aspectRatio) const
+CUDA_HOST glm::fvec3 Camera::worldPositionFromNormalizedImageCoordinate(const glm::fvec2 point, const float aspectRatio) const
 {
   glm::fvec3 ip = glm::tan(fov * 0.5f) * point.x * aspectRatio * getLeft() +
     glm::tan(fov * 0.5f) * point.y * getUp() +

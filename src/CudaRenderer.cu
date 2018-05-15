@@ -8,6 +8,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <math_constants.h>
+#include <cooperative_groups.h>
 
 #include "Utils.hpp"
 #include "Triangle.hpp"
@@ -18,16 +19,34 @@
 #define BIGT 99999.f
 #define AIR_INDEX 1.f
 
-template<class T> __device__ inline T operator~ (T a) { return (T)~(int)a; }
-template<class T> __device__ inline T operator| (T a, T b) { return (T)((int)a | (int)b); }
-template<class T> __device__ inline T operator& (T a, T b) { return (T)((int)a & (int)b); }
-template<class T> __device__ inline T operator^ (T a, T b) { return (T)((int)a ^ (int)b); }
-template<class T> __device__ inline T& operator|= (T& a, T b) { return (T&)((int&)a |= (int)b); }
-template<class T> __device__ inline T& operator&= (T& a, T b) { return (T&)((int&)a &= (int)b); }
-template<class T> __device__ inline T& operator^= (T& a, T b) { return (T&)((int&)a ^= (int)b); }
+enum RandDim
+{
+	SHADING = 0,
+	LIGHT,
+	DIFF0,
+	DIFF1,
+	EXT0,
+	EXT1
+};
 
 #define LEFT_HIT_BIT 0x80000000
 #define RIGHT_HIT_BIT 0x40000000
+
+// Veach
+__device__ inline float powerHeuristic(const float pdf0, const float pdf1)
+{
+    return (pdf0*pdf0)/(pdf0*pdf0 + pdf1*pdf1);
+}
+
+// https://devblogs.nvidia.com/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
+__device__ int atomicAggInc(uint32_t *ctr) {
+	auto g = cooperative_groups::coalesced_threads();
+	uint32_t warp_res;
+
+	if(g.thread_rank() == 0)
+		warp_res = atomicAdd(ctr, g.size());
+	return g.shfl(warp_res, 0) + g.thread_rank();
+}
 
 __device__ inline float scramble(const uint32_t scrambleConstant, const float f)
 {
@@ -38,12 +57,9 @@ __device__ inline float scramble(const uint32_t scrambleConstant, const float f)
 	return r;
 }
 
-__device__ bool bboxIntersect(const AABB box, const float3 origin,
-		const float3 inverseDirection, float& t)
+__device__ float bboxIntersect(const AABB box, const float3 origin,	const float3 inverseDirection, float& t)
 {
-	float3 tmin = make_float3(-BIGT, -BIGT, -BIGT), tmax = make_float3(BIGT,
-	BIGT,
-	BIGT);
+	float3 tmin = make_float3(-BIGT, -BIGT, -BIGT), tmax = make_float3(BIGT, BIGT, BIGT);
 
 	const float3 tdmin = (box.min - origin) * inverseDirection;
 	const float3 tdmax = (box.max - origin) * inverseDirection;
@@ -54,9 +70,7 @@ __device__ bool bboxIntersect(const AABB box, const float3 origin,
 	const float tmind = fmin_compf(tmin);
 	const float tmaxd = fmin_compf(tmax);
 
-	t = fminf(tmind, tmaxd);
-
-	return tmaxd >= tmind && !(tmaxd < 0.f && tmind < 0.f);
+	return (tmaxd >= tmind && !(tmaxd < 0.f && tmind < 0.f)) ? fminf(tmind, tmaxd) : -1.f;
 }
 
 __device__ bool rayTriangleIntersection(const Ray ray, const Triangle& triangle,
@@ -133,8 +147,7 @@ __device__ RaycastResult rayCast(const Ray ray, const Node* bvh,
 		{
 			getNextNode = false;
 
-			if (i >= currentNode.startTri
-					&& i < currentNode.startTri + currentNode.nTri)
+			if (i >= currentNode.startTri && i < currentNode.startTri + currentNode.nTri)
 			{
 				if (rayTriangleIntersection(ray, triangles[i], t, uv))
 				{
@@ -167,16 +180,11 @@ __device__ RaycastResult rayCast(const Ray ray, const Node* bvh,
 			const AABB leftBox = bvh[stack[ptr] + 1].bbox;
 			const AABB rightBox = bvh[currentNode.rightIndex].bbox;
 
-			float leftt, rightt;
+			float leftt = bboxIntersect(leftBox, ray.origin, inverseDirection,	leftt);
+			float rightt = bboxIntersect(rightBox, ray.origin, inverseDirection, rightt);
 
-			uint32_t hitMask =
-					bboxIntersect(leftBox, ray.origin, inverseDirection,
-							leftt) ?
-					LEFT_HIT_BIT :
-										0x00;
-			hitMask =
-					bboxIntersect(rightBox, ray.origin, inverseDirection,
-							rightt) ? hitMask | RIGHT_HIT_BIT : hitMask;
+			uint32_t hitMask = leftt != -1.f ? LEFT_HIT_BIT : 0x00;
+			hitMask = rightt != -1.f ? hitMask | RIGHT_HIT_BIT : hitMask;
 
 			// TODO: Push closer one last, don't intersect if closest hit is closer than box
 			if ((hitMask & LEFT_HIT_BIT) != 0x00 && leftt < tMin)
@@ -242,14 +250,14 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 	if (x >= canvasSize.x || y >= canvasSize.y)
 		return;
 
-	const float rf = paths.floats[0];
+	const float rf = paths.floats[RandDim::SHADING];
 
 	const RaycastResult result = paths.result[idx];
 	const uint32_t rayNr = paths.rayNr[idx];
 
-	if (!result || rayNr >= 5)
+	if (!result || rayNr >= 10)
 	{
-		const uint32_t new_idx = atomicAdd(queues.newPathQueueSize, 1);
+		const uint32_t new_idx = atomicAggInc(queues.newPathQueueSize);
 		queues.newPathQueue[new_idx] = idx;
 		paths.color[idx] = make_float3(0.2f, 0.2f, 0.2f);
 		return;
@@ -270,15 +278,15 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 
 				if (rf < diffuseTreshold)
 				{
-					new_idx = atomicAdd(queues.diffuseQueueSize, 1);
+					new_idx = atomicAggInc(queues.diffuseQueueSize);
 					queues.diffuseQueue[new_idx] = idx;
 				}else if (rf > diffuseTreshold && rf < specularTreshold)
 				{
-					 new_idx = atomicAdd(queues.specularQueueSize, 1);
+					 new_idx = atomicAggInc(queues.specularQueueSize);
 					 queues.specularQueue[new_idx] = idx;
 				}else
 				{
-					 new_idx = atomicAdd(queues.transparentQueueSize, 1);
+					 new_idx = atomicAggInc(queues.transparentQueueSize);
 					 queues.transparentQueue[new_idx] = idx;
 				}
 			}
@@ -292,18 +300,18 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 
 				if (rf < diffuseTreshold)
 				{
-					new_idx = atomicAdd(queues.diffuseQueueSize, 1);
+					new_idx = atomicAggInc(queues.diffuseQueueSize);
 					queues.diffuseQueue[new_idx] = idx;
 				}else
 				{
-					 new_idx = atomicAdd(queues.specularQueueSize, 1);
+					 new_idx = atomicAggInc(queues.specularQueueSize);
 					 queues.specularQueue[new_idx] = idx;
 				}
 			}
 			break;
 
 		default:
-			new_idx = atomicAdd(queues.diffuseQueueSize, 1);
+			new_idx = atomicAggInc(queues.diffuseQueueSize);
 			queues.diffuseQueue[new_idx] = idx;
 			break;
 	}
@@ -403,46 +411,52 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 	const float3 shadowRayOrigin = ray.origin + ray.direction*result.t + hitNormal * OFFSET_EPSILON;
 
-	float3 brightness = make_float3(0.f, 0.f, 0.f);
+	float3 directLightning = make_float3(0.f, 0.f, 0.f);
 
-	for (uint32_t i = 0; i < lightTriangles; ++i)
+	if (lightTriangles > 0) // TODO: Make check reduntant
 	{
-		float pdf;
-		float3 shadowPoint;
+		// Choose light by uniform sampling
+		const float lightPdf = 1.f / lightTriangles;
+		const float lightF = paths.floats[RandDim::LIGHT];
+		const uint32_t lightIdx = lightF / lightPdf;
 
-		float r0 = paths.floats[1+2*i];
-		float r1 = paths.floats[2+2*i];
+		float r0 = paths.floats[RandDim::DIFF0];
+		float r1 = paths.floats[RandDim::DIFF1];
 
 		r0 = scramble(scrambleConstant, r0);
 		r1 = scramble(scrambleConstant, r1);
 
-		triangles[lightTriangleIds[i]].sample(pdf, shadowPoint, r0, r1);
+		const float4 pointPdf = triangles[lightTriangleIds[lightIdx]].sample(r0, r1);
+		const float3 shadowPoint = make_float3(pointPdf.x, pointPdf.y, pointPdf.z);
+
+		const float misWeight = powerHeuristic(lightPdf*pointPdf.w, CUDART_PI_F); // TODO: Check PI pdf
 
 		const float3 shadowRayDirection = shadowPoint - shadowRayOrigin;
 		const Ray shadowRay(shadowRayOrigin, normalize(shadowRayDirection));
 		const float shadowRayLength = length(shadowRayDirection);
 
-		const Triangle lightTriangle = triangles[lightTriangleIds[i]];
-		const Material lightTriangleMaterial = materials[triangleMaterialIds[lightTriangleIds[i]]];
+		const Triangle lightTriangle = triangles[lightTriangleIds[lightIdx]];
+		const Material lightTriangleMaterial = materials[triangleMaterialIds[lightTriangleIds[lightIdx]]];
 		const float3 lightEmission = lightTriangleMaterial.colorEmission;
 
-		RaycastResult shadowResult = rayCast<HitType::ANY>(shadowRay, bvh, triangles, shadowRayLength);
+		const RaycastResult shadowResult = rayCast<HitType::ANY>(shadowRay, bvh, triangles, shadowRayLength);
 
 		if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
 		{
 			const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
 
-			brightness += 1.f / (shadowRayLength * shadowRayLength * pdf) * lightEmission * cosL * cosOmega;
+			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * lightPdf * pointPdf.w) * lightEmission * cosL * cosOmega;
 		}
-	}
 
+		// TODO: bsdf sampling
+	}
 	const float3 currentTroughput = paths.throughput[pathIdx];
 	const float3 filteredAmbient = currentTroughput * material.colorAmbient;
 	const float3 filteredDiffuse = currentTroughput * material.colorDiffuse;
-	const float3 fiteredEmission = currentTroughput * material.colorEmission; // TODO: Don't add this, light is sampled explicitly
+	const float3 fiteredEmission = currentTroughput * material.colorEmission;
 
-	paths.color[pathIdx] += fiteredEmission + filteredAmbient + brightness / lightTriangles * filteredDiffuse / CUDART_PI_F;
+	paths.color[pathIdx] += fiteredEmission + filteredAmbient + directLightning * filteredDiffuse / CUDART_PI_F;
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -509,8 +523,8 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 
 	float33 B = getBasis(hitNormal);
 
-	float r0 = paths.floats[1+2*lightTriangles];
-	float r1 = paths.floats[2+2*lightTriangles];
+	float r0 = paths.floats[RandDim::EXT0];
+	float r1 = paths.floats[RandDim::EXT1];
 
 	r0 = scramble(scrambleConstant, r0);
 	r1 = scramble(scrambleConstant, r1);

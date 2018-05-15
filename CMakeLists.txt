@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 set(ENABLE_CUDA ON CACHE BOOL "Enable Cuda features") # Enable by default
 
 # Set project language
-project(wavy LANGUAGES CXX CUDA)
+project(cuWave LANGUAGES CXX CUDA)
 add_definitions(-DENABLE_CUDA)
 
 # Define some variables
@@ -22,7 +22,7 @@ find_package(CUDA REQUIRED)
 CUDA_SELECT_NVCC_ARCH_FLAGS(CUDA_ARCH_FLAGS Auto)
 list(APPEND CMAKE_CUDA_FLAGS ${CUDA_ARCH_FLAGS})
 string(REPLACE ";" " " CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}") # Phew...
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call -Xptxas -dlcm=ca  --compiler-options=\"${CXX_FLAGS}\"")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call -Xptxas -dlcm=ca --ptxas-options=-v --compiler-options=\"${CXX_FLAGS}\"")
 
 
 find_package(OpenMP)

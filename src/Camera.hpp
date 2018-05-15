@@ -17,13 +17,13 @@ class Camera
 {
 public:
   CUDA_HOST_DEVICE Camera();
-  CUDA_HOST_DEVICE void rotate(const glm::fvec2& r, const float dTime);
-  CUDA_HOST_DEVICE void translate(const glm::fvec3& t, const float dt);
-  CUDA_HOST_DEVICE void increaseFOV();
-  CUDA_HOST_DEVICE void decreaseFOV();
+  CUDA_HOST void rotate(const glm::fvec2 r, const float dTime);
+  CUDA_HOST void translate(const glm::fvec3 t, const float dt);
+  CUDA_HOST void increaseFOV();
+  CUDA_HOST void decreaseFOV();
   
   CUDA_HOST_DEVICE glm::fvec2 normalizedImageCoordinateFromPixelCoordinate(const unsigned int x, const unsigned int y, const glm::ivec2 size) const;
-  CUDA_HOST_DEVICE glm::fvec3 worldPositionFromNormalizedImageCoordinate(const glm::fvec2& point, const float aspectRatio) const;
+  CUDA_HOST_DEVICE glm::fvec3 worldPositionFromNormalizedImageCoordinate(const glm::fvec2 point, const float aspectRatio) const;
 
   CUDA_HOST_DEVICE const glm::fmat4 getMVP(const glm::ivec2& size) const;
   CUDA_HOST_DEVICE const glm::fmat4 getP(const glm::ivec2& size) const;
@@ -31,7 +31,7 @@ public:
   CUDA_HOST_DEVICE const glm::fvec3 getLeft() const;
   CUDA_HOST_DEVICE const glm::fvec3 getUp() const;
   CUDA_HOST_DEVICE const glm::fvec3 getForward() const;
-  CUDA_HOST_DEVICE const glm::fvec3& getPosition() const;
+  CUDA_HOST_DEVICE const glm::fvec3 getPosition() const;
   CUDA_HOST_DEVICE       float     getHAngle() const;
   CUDA_HOST_DEVICE       float     getVAngle() const;
   CUDA_HOST_DEVICE       float     getFov() const;

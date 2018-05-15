@@ -85,7 +85,6 @@ Model ModelLoader::loadOBJ(const std::string& path)
 
 	Material lightMaterial;
 	lightMaterial.colorEmission = make_float3(300.f, 300.f, 300.f);
-	lightMaterial.colorAmbient = make_float3(1.f, 1.f, 1.f);
 	lightMaterial.colorDiffuse = make_float3(1.f, 1.f, 1.f);
 	materials.push_back(lightMaterial);
 

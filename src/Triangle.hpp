@@ -34,10 +34,9 @@ struct Triangle {
 		vertices[2] = v2;
 	}
 
-  CUDA_DEVICE_FUNCTION void sample(float& pdf, float3& point, float x, float y) const
+  // Return float4(point, pdf) to registers instead of via reference to memory
+  CUDA_DEVICE_FUNCTION float4 sample(float x, float y) const
   {
-    pdf = 1.0f / area();
-
     const float3 v0 = vertices[1].p - vertices[0].p;
     const float3 v1 = vertices[2].p - vertices[0].p;
 
@@ -49,7 +48,9 @@ struct Triangle {
     		y -= 0.5f;
     }
 
-    point = vertices[0].p + x*v0 + y*v1;
+    const float3 point = vertices[0].p + x*v0 + y*v1;
+
+    return make_float4(point.x, point.y, point.z, 1.0f/area());
   }
 
   CUDA_FUNCTION Triangle& operator=(const Triangle& that) = default;
