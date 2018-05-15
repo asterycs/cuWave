@@ -444,17 +444,19 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
 		{
 			const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
-			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
+			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal(shadowResult.uv)));
 
 			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * lightPdf * pointPdf.w) * lightEmission * cosL * cosOmega;
 		}
 
 		// TODO: bsdf sampling
 	}
+
+	// TODO: Light shines backwards???
 	const float3 currentTroughput = paths.throughput[pathIdx];
 	const float3 filteredAmbient = currentTroughput * material.colorAmbient;
 	const float3 filteredDiffuse = currentTroughput * material.colorDiffuse;
-	const float3 fiteredEmission = currentTroughput * material.colorEmission;
+	const float3 fiteredEmission = paths.rayNr[pathIdx] == 1 ? currentTroughput * material.colorEmission : make_float3(0.f, 0.f, 0.f);
 
 	paths.color[pathIdx] += fiteredEmission + filteredAmbient + directLightning * filteredDiffuse / CUDART_PI_F;
 }
