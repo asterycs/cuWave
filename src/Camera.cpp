@@ -98,7 +98,7 @@ CUDA_HOST_DEVICE Ray Camera::generateRay(const glm::fvec2& point, const float as
 
   glm::fvec3 d = ip - getPosition();
 
-  return Ray(glm32float3(position), glm32float3(normalize(d)));
+  return Ray(glm32float3(position), normalize(glm32float3(d)));
 }
 
 CUDA_HOST glm::fvec3 Camera::worldPositionFromNormalizedImageCoordinate(const glm::fvec2 point, const float aspectRatio) const

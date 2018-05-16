@@ -25,6 +25,8 @@ enum RandDim
 	LIGHT,
 	DIFF0,
 	DIFF1,
+	DIFF2,
+	DIFF3,
 	EXT0,
 	EXT1
 };
@@ -32,10 +34,30 @@ enum RandDim
 #define LEFT_HIT_BIT 0x80000000
 #define RIGHT_HIT_BIT 0x40000000
 
-// Veach
-__device__ inline float powerHeuristic(const float pdf0, const float pdf1)
+__device__ inline float fresnelReflectioncoefficient(const float sin2t, const float cosi, const float idx1, const float idx2)
 {
-    return (pdf0*pdf0)/(pdf0*pdf0 + pdf1*pdf1);
+  const float cost = sqrt(1 - sin2t);
+
+  const float Rs = (idx1 * cosi - idx2 * cost) / (idx1 * cosi + idx2 * cost);
+  const float Rp = (idx1 * cost - idx2 * cosi) / (idx1 * cost + idx2 * cosi);
+
+  return (Rs * Rs + Rp * Rp) * 0.5f;
+}
+
+__device__ float3 createDirection(const float r0, const float r1)
+{
+	const float sinTheta = sqrtf(r0);
+	const float cosTheta = sqrtf(1-sinTheta*sinTheta);
+
+	const float psi = r1*2*CUDART_PI_F;
+
+	return make_float3(sinTheta*cosf(psi), sinTheta*sinf(psi), cosTheta);
+}
+
+// Veach
+__device__ inline float powerHeuristic(const float f, const float g)
+{
+    return (f*f)/(f*f + g*g);
 }
 
 // https://devblogs.nvidia.com/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
@@ -222,7 +244,7 @@ __device__ void writeToCanvas(const uint32_t x, const uint32_t y,
 		const cudaSurfaceObject_t& surfaceObj, const glm::ivec2 canvasSize,
 		const float3 data)
 {
-	const float4 out = make_float4(data.x, data.y, data.z, 1.f);
+	const float4 out = make_float4(__saturatef(data.x), __saturatef(data.y), __saturatef(data.z), 1.f);
 	surf2Dwrite(out, surfaceObj, (canvasSize.x - 1 - x) * sizeof(out), y);
 	return;
 }
@@ -239,7 +261,9 @@ __device__ float3 readFromCanvas(const uint32_t x, const uint32_t y,
 
 __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 		Paths paths, const Material* materials,
-		const uint32_t* triangleMaterialIds)
+		const uint32_t* triangleMaterialIds,
+		const Triangle* triangles
+		)
 {
 	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
 	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -250,7 +274,8 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 	if (x >= canvasSize.x || y >= canvasSize.y)
 		return;
 
-	const float rf = paths.floats[RandDim::SHADING];
+	const uint32_t scrambleConstant = paths.scrambleConstants[idx];
+	const float rf = scramble(scrambleConstant, paths.floats[RandDim::SHADING]);
 
 	const RaycastResult result = paths.result[idx];
 	const uint32_t rayNr = paths.rayNr[idx];
@@ -259,10 +284,15 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 	{
 		const uint32_t new_idx = atomicAggInc(queues.newPathQueueSize);
 		queues.newPathQueue[new_idx] = idx;
-		paths.color[idx] = make_float3(0.2f, 0.2f, 0.2f);
+
+		if (rayNr == 1)
+			paths.color[idx] = make_float3(0.3f, 0.3f, 0.3f);
+
 		return;
 	}
 
+	const Ray ray = paths.ray[idx];
+	const float3 normal = triangles[result.triangleIdx].normal(result.uv);
 	const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 
 	uint32_t new_idx;
@@ -271,26 +301,52 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 	{
 		case (Material::TRANSPARENCY_REFLECTION_FRESNEL):
 			{
-				const float total = length(material.colorDiffuse) + length(material.colorSpecular) + length(material.colorTransparent);
-				const float diffuseTreshold = length(material.colorDiffuse) / total;
-				const float specularTreshold = diffuseTreshold + length(material.colorSpecular) / total;
-				const float transparentTreshold = diffuseTreshold + specularTreshold + length(material.colorTransparent) / total;
+				const float idx1 = AIR_INDEX;
+				const float idx2 = material.refractionIndex;
 
-				if (rf < diffuseTreshold)
+				float refractionRatio;
+
+				const bool outside = dot(ray.direction, normal) < 0.f;
+				float3 flippedNormal = normal;
+
+				if (outside)
+					refractionRatio = idx2 / idx1;
+				else
 				{
-					new_idx = atomicAggInc(queues.diffuseQueueSize);
-					queues.diffuseQueue[new_idx] = idx;
-				}else if (rf > diffuseTreshold && rf < specularTreshold)
-				{
-					 new_idx = atomicAggInc(queues.specularQueueSize);
-					 queues.specularQueue[new_idx] = idx;
-				}else
-				{
-					 new_idx = atomicAggInc(queues.transparentQueueSize);
-					 queues.transparentQueue[new_idx] = idx;
+					refractionRatio = idx1 / idx2;
+					flippedNormal = -normal;
 				}
+
+				const float cosi = dot(ray.direction, -flippedNormal);
+
+				if (sinf(acosf(cosi)) <= refractionRatio) // Refraction allowed
+				{
+					const float sin2t = abs((idx1 / idx2) * (idx1 / idx2) * (1 - cosi * cosi));
+					const float twoR = outside ? 2.f*fresnelReflectioncoefficient(sin2t, cosi, idx1, idx2): 1.f;
+					const float total = length(material.colorDiffuse) + twoR * length(material.colorSpecular) + (2.f-twoR) * length(material.colorTransparent);
+					const float diffuseTreshold = length(material.colorDiffuse) / total;
+					const float specularTreshold = diffuseTreshold + twoR * length(material.colorSpecular) / total;
+					//const float transparentTreshold = diffuseTreshold + specularTreshold + ((1-R) / 0.5f) * length(material.colorTransparent) / total;
+
+					if (rf < diffuseTreshold)
+					{
+						new_idx = atomicAggInc(queues.diffuseQueueSize);
+						queues.diffuseQueue[new_idx] = idx;
+					}else if (rf > diffuseTreshold && rf < specularTreshold)
+					{
+						 new_idx = atomicAggInc(queues.specularQueueSize);
+						 queues.specularQueue[new_idx] = idx;
+						 paths.throughput[idx] = paths.throughput[idx] * material.colorSpecular * twoR;
+					}else
+					{
+						 new_idx = atomicAggInc(queues.transparentQueueSize);
+						 queues.transparentQueue[new_idx] = idx;
+						 paths.throughput[idx] = paths.throughput[idx] * material.colorTransparent * (2.f-twoR);
+					}
+
+					break;
+				} // Total reflection, handle as reflection using falltrough. Not entirely correct.
 			}
-			break;
 
 		case (Material::REFLECTION_FRESNEL):
 			{
@@ -444,15 +500,34 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
 		{
 			const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
-			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal(shadowResult.uv)));
+			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
 
 			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * lightPdf * pointPdf.w) * lightEmission * cosL * cosOmega;
 		}
 
-		// TODO: bsdf sampling
+
+		const float33 B = getBasis(hitNormal);
+
+		float r2 = scramble(scrambleConstant, paths.floats[RandDim::DIFF2]);
+		float r3 = scramble(scrambleConstant, paths.floats[RandDim::DIFF3]);
+
+		float3 brdfDir = createDirection(r2, r3);
+		brdfDir = B * brdfDir;
+		const Ray brdfRay(shadowRayOrigin, brdfDir);
+
+		const RaycastResult brdfResult = rayCast<HitType::CLOSEST>(brdfRay, bvh, triangles, BIGT);
+
+		if (brdfResult.triangleIdx != result.triangleIdx)
+		{
+			float weight = powerHeuristic(CUDART_PI_F, lightPdf*pointPdf.w);
+
+			const float cosOmega = __saturatef(dot(normalize(brdfDir), hitNormal));
+			const float cosL = __saturatef(dot(-normalize(brdfDir), lightTriangle.normal()));
+
+			//directLightning += misWeight * 1.f / (length(brdfDir*brdfResult.t) * length(brdfDir*brdfResult.t) * CUDART_PI_F) * lightEmission * cosL * cosOmega;
+		}
 	}
 
-	// TODO: Light shines backwards???
 	const float3 currentTroughput = paths.throughput[pathIdx];
 	const float3 filteredAmbient = currentTroughput * material.colorAmbient;
 	const float3 filteredDiffuse = currentTroughput * material.colorDiffuse;
@@ -525,26 +600,18 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 
 	float33 B = getBasis(hitNormal);
 
-	float r0 = paths.floats[RandDim::EXT0];
-	float r1 = paths.floats[RandDim::EXT1];
+	float r0 = scramble(scrambleConstant, paths.floats[RandDim::EXT0]);
+	float r1 = scramble(scrambleConstant, paths.floats[RandDim::EXT1]);
 
-	r0 = scramble(scrambleConstant, r0);
-	r1 = scramble(scrambleConstant, r1);
-
-	const float sinTheta = sqrtf(r0);
-	const float cosTheta = sqrtf(1-sinTheta*sinTheta);
-
-	const float psi = r1*2*CUDART_PI_F;
-
-	float3 extensionDir = make_float3(sinTheta*cosf(psi), sinTheta*sinf(psi), cosTheta);
+	float3 extensionDir = createDirection(r0, r1);
 
 	extensionDir = B * extensionDir;
 	extensionDir = normalize(extensionDir); // Unnecessary
 	const float3 extensionOrig = ray.origin + ray.direction*result.t + OFFSET_EPSILON * hitNormal;
 	const Ray extensionRay(extensionOrig, extensionDir);
 
-	float cosO = dot(extensionDir, hitNormal);
-	float p = cosO * dot(extensionDir, hitNormal) * (1.f / CUDART_PI_F);
+	const float cosO = dot(extensionDir, hitNormal);
+	const float p = cosO * dot(extensionDir, hitNormal) * (1.f / CUDART_PI_F);
 	float3 throughput = material.colorDiffuse / CUDART_PI_F * dot(extensionDir, hitNormal);
 
 	paths.ray[pathIdx] = extensionRay;
@@ -558,9 +625,7 @@ __global__ void
 	 const glm::ivec2 canvasSize,
 	 const Queues queues,
 	 const Paths paths,
-	 const Triangle* triangles,
-	 const uint32_t* triangleMaterialIds,
-	 const Material* materials
+	 const Triangle* triangles
 	 )
  {
 	 const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -575,7 +640,6 @@ __global__ void
 
 	 const Ray hitRay = paths.ray[pathIdx];
 	 const RaycastResult hitResult = paths.result[pathIdx];
-	 const float3 materialSpecularColor = materials[triangleMaterialIds[hitResult.triangleIdx]].colorSpecular;
 
 	 const Triangle triangle = triangles[hitResult.triangleIdx];
 	 const float3 hitNormal = triangle.normal(hitResult.uv);
@@ -586,7 +650,7 @@ __global__ void
 	 const Ray reflectionRay(reflectionRayOrigin, reflectionRayDir);
 
 	 paths.ray[pathIdx] = reflectionRay;
-	 paths.throughput[pathIdx] = paths.throughput[pathIdx] * materialSpecularColor;
+	 //paths.throughput[pathIdx] = paths.throughput[pathIdx] * material.colorSpecular; // Handled in logicKernel
 	 paths.rayNr[pathIdx] += 1;
  }
 
@@ -600,61 +664,40 @@ __global__ void
 	 const Material* materials
 	 )
  {
-	 const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
-	 const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
-	 const uint32_t idx = x + y * canvasSize.x;
+	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
+	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
+	const uint32_t idx = x + y * canvasSize.x;
 
-	 if (idx >= *queues.transparentQueueSize)
-		 return;
+	if (idx >= *queues.transparentQueueSize)
+		return;
 
-	 const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
-	 const uint32_t pathIdx = queues.transparentQueue[idx];
+	const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
+	const uint32_t pathIdx = queues.transparentQueue[idx];
 
-	 const Ray hitRay = paths.ray[pathIdx];
-	 const RaycastResult hitResult = paths.result[pathIdx];
+	const Ray hitRay = paths.ray[pathIdx];
+	const RaycastResult hitResult = paths.result[pathIdx];
 
-	 const Triangle triangle = triangles[hitResult.triangleIdx];
-	 float3 hitNormal = triangle.normal(hitResult.uv);
-	 const Material material = materials[triangleMaterialIds[hitResult.triangleIdx]];
+	const Triangle triangle = triangles[hitResult.triangleIdx];
+	float3 hitNormal = triangle.normal(hitResult.uv);
+	const Material material = materials[triangleMaterialIds[hitResult.triangleIdx]];
 
-     const float idx1 = AIR_INDEX;
-     const float idx2 = material.refractionIndex;
+	const float idx1 = AIR_INDEX;
+	const float idx2 = material.refractionIndex;
 
-     float rat;
+	const bool outside = dot(hitRay.direction, hitNormal) < 0.f;
 
-     const bool outside = dot(hitRay.direction, hitNormal) < 0.f;
+	if (!outside)
+		hitNormal = -hitNormal;
 
-     if (outside)
-       rat = idx2 / idx1;
-     else
-     {
-       rat = idx1 / idx2;
-       hitNormal = -hitNormal;
-     }
+	const float cosi = __saturatef(dot(hitRay.direction, hitNormal));
+	const float sin2t = abs((idx1 / idx2) * (idx1 / idx2) * (1 - cosi * cosi));
 
-     const float cosi = fabsf(dot(hitRay.direction, hitNormal));
+	const float3 transOrig = hitRay.origin + hitRay.direction*hitResult.t - hitNormal * OFFSET_EPSILON;
+	const float3 transDir = refractionDirection(cosi, sin2t, hitNormal, hitRay.direction, idx1, idx2);
 
-     if (sinf(acosf(cosi)) <= rat) // Check for total internal reflection
-     {
-		const float sin2t = fabs((idx1 / idx2) * (idx1 / idx2) * (1 - cosi * cosi));
-
-		const float3 transOrig = hitRay.origin + hitRay.direction*hitResult.t - hitNormal * OFFSET_EPSILON;
-		const float3 transDir = refractionDirection(cosi, sin2t, hitNormal, hitRay.direction, idx1, idx2);
-
-		paths.ray[pathIdx] = Ray(transOrig, transDir);
-		paths.throughput[pathIdx] = paths.throughput[pathIdx] * material.colorTransparent;
-		paths.rayNr[pathIdx] += 1;
-     }else
-     {
-		const float3 reflectionRayOrigin = hitRay.origin + hitRay.direction*hitResult.t + hitNormal * OFFSET_EPSILON;
-		const float3 reflectionRayDir = reflectionDirection(hitNormal, hitRay.direction);
-
-		const Ray reflectionRay(reflectionRayOrigin, reflectionRayDir);
-
-		paths.ray[pathIdx] = reflectionRay;
-		paths.throughput[pathIdx] = paths.throughput[pathIdx] * material.colorSpecular;
-		paths.rayNr[pathIdx] += 1;
-     }
+	paths.ray[pathIdx] = Ray(transOrig, transDir);
+	//paths.throughput[pathIdx] = paths.throughput[pathIdx] * material.colorTransparent; // Handled in logicKernel
+	paths.rayNr[pathIdx] += 1;
  }
 
 __global__ void resetAllPaths(Paths paths, Camera camera,
@@ -818,7 +861,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 	CUDA_CHECK(cudaDeviceSynchronize());
 
 	logicKernel<<<grid, block>>>(canvasSize, queues, paths,
-			model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds());
+			model.getDeviceMaterials(), model.getDeviceTriangleMaterialIds(), model.getDeviceTriangles());
 
 	CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -833,9 +876,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 		canvasSize,
 		queues,
 		paths,
-		model.getDeviceTriangles(),
-		model.getDeviceTriangleMaterialIds(),
-		model.getDeviceMaterials()
+		model.getDeviceTriangles()
 	);
 
 	 CUDA_CHECK(cudaDeviceSynchronize());

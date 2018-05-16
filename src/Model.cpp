@@ -32,13 +32,13 @@ void Model::addLight(const glm::mat4 tform)
 
 	std::vector<Vertex> vertices;
 
-	for (auto& c : contour)
+	for (auto c : contour)
 	{
 		const glm::mat3 N = glm::transpose(glm::inverse(glm::mat3(tform))); // Normal to world
 
 		Vertex v;
 		v.p = glm42float3(tform * c);
-		v.n = glm32float3(N * glm::vec3(0.0f, 0.0f, 1.f));
+		v.n = glm32float3(N * glm::vec3(0.0f, 0.0f, -1.f));
 		vertices.push_back(v);
 	}
 
