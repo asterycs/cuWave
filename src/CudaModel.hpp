@@ -1,5 +1,5 @@
-#ifndef MODEL_HPP
-#define MODEL_HPP
+#ifndef CUDAMODEL_HPP
+#define CUDAMODEL_HPP
 
 #include <vector>
 #include <string>
@@ -13,16 +13,16 @@
 #include "Triangle.hpp"
 #include "BVHBuilder.hpp"
 
-class Model
+class CudaModel
 {
 public:
-  Model();
-  Model(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<unsigned int> triMatIds, std::vector<unsigned int> lightTriangles, const std::string& fileName);
-  ~Model();
-  Model(Model&) = delete;
-  Model(Model&&) = default;
-  Model& operator=(Model&) = delete;
-  Model& operator=(Model&&) = default;
+  CudaModel();
+  CudaModel(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<uint32_t> triMatIds, std::vector<uint32_t> lightTriangles, const std::string& fileName);
+  ~CudaModel();
+  CudaModel(CudaModel&) = delete;
+  CudaModel(CudaModel&&) = default;
+  CudaModel& operator=(CudaModel&) = delete;
+  CudaModel& operator=(CudaModel&&) = default;
 
   void addLight(const glm::mat4 tform);
   void rebuild();

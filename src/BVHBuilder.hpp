@@ -7,7 +7,7 @@
 #include "Utils.hpp"
 #include "Triangle.hpp"
 
-#define MAX_TRIS_PER_LEAF 8
+#define MAX_TRIS_PER_LEAF 128
 
 class BVHBuilder
 {

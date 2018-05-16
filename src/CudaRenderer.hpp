@@ -8,7 +8,7 @@
 
 #include "GLTexture.hpp"
 #include "Camera.hpp"
-#include "Model.hpp"
+#include "CudaModel.hpp"
 
 #define PREGEN_RANDS 20
 
@@ -157,7 +157,7 @@ public:
   CudaRenderer();
   ~CudaRenderer();
 
-  void pathTraceToCanvas(GLTexture& canvas, const Camera& camera, Model& model);
+  void pathTraceToCanvas(GLTexture& canvas, const Camera& camera, CudaModel& model);
   void resize(const glm::ivec2 size);
   void reset();
 

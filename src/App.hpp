@@ -47,7 +47,8 @@ private:
     GLContext glcontext;
     CudaRenderer cudaRenderer;
 
-    Model model;
+    CudaModel cudaModel;
+    GLModel glModel;
     GLTexture glcanvas;
     
     Camera camera;

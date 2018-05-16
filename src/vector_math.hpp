@@ -275,6 +275,11 @@ inline __host__ __device__ void operator*=(float3 &a, const float s)
   a.x *= s; a.y *= s; a.z *= s;
 }
 
+inline __host__ __device__ void operator*=(float3 &a, const float3 b)
+{
+  a.x *= b.x; a.y *= b.y; a.z *= b.z;
+}
+
 inline __host__ __device__ float3 operator/(const float3 a, const float3 b)
 {
   return make_float3(a.x / b.x, a.y / b.y, a.z / b.z);

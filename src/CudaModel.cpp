@@ -1,4 +1,4 @@
-#include "Model.hpp"
+#include "CudaModel.hpp"
 
 #include <numeric>
 #include <memory>
@@ -6,17 +6,17 @@
 #include <cmath>
 
 
-Model::Model() : nTriangles(0)
+CudaModel::CudaModel() : nTriangles(0)
 {
   
 }
 
-Model::~Model()
+CudaModel::~CudaModel()
 {
 
 }
 
-void Model::addLight(const glm::mat4 tform)
+void CudaModel::addLight(const glm::mat4 tform)
 {
 	const glm::vec2 lightSize(0.15f, 0.15f);
 
@@ -55,7 +55,7 @@ void Model::addLight(const glm::mat4 tform)
 }
 
 
-Model::Model(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<uint32_t> triMatIds, std::vector<uint32_t> lightTriangles, const std::string& fileName) : fileName(fileName)
+CudaModel::CudaModel(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<uint32_t> triMatIds, std::vector<uint32_t> lightTriangles, const std::string& fileName) : fileName(fileName)
 {
   std::cout << "Building BVH..." << std::endl;
   BVHBuilder bvhbuilder;
@@ -78,7 +78,7 @@ Model::Model(std::vector<Triangle> triangles, std::vector<Material> materials, s
   nTriangles = triangles.size();
 }
 
-void Model::rebuild()
+void CudaModel::rebuild()
 {
   std::cout << "Building BVH..." << std::endl;
   std::vector<Triangle> newTris(triangles.begin(), triangles.end());
@@ -97,47 +97,47 @@ void Model::rebuild()
   nTriangles = triangles.size();
 }
 
-const Triangle* Model::getDeviceTriangles() const
+const Triangle* CudaModel::getDeviceTriangles() const
 {
   return thrust::raw_pointer_cast(&triangles[0]);
 }
 
-const Material* Model::getDeviceMaterials() const
+const Material* CudaModel::getDeviceMaterials() const
 {
   return thrust::raw_pointer_cast(&materials[0]);
 }
 
-const uint32_t* Model::getDeviceTriangleMaterialIds() const
+const uint32_t* CudaModel::getDeviceTriangleMaterialIds() const
 {
   return thrust::raw_pointer_cast(&triangleMaterialIds[0]);
 }
 
-const std::string& Model::getFileName() const
+const std::string& CudaModel::getFileName() const
 {
   return fileName;
 }
 
-const AABB& Model::getBbox() const
+const AABB& CudaModel::getBbox() const
 {
   return this->boundingBox;
 }
 
-const Node* Model::getDeviceBVH() const
+const Node* CudaModel::getDeviceBVH() const
 {
   return thrust::raw_pointer_cast(&bvh[0]);
 }
 
-uint32_t Model::getNTriangles() const
+uint32_t CudaModel::getNTriangles() const
 {
   return nTriangles;
 }
 
-uint32_t Model::getNLights() const
+uint32_t CudaModel::getNLights() const
 {
   return lightTriangles.size();
 }
 
-const uint32_t* Model::getDeviceLightIds() const
+const uint32_t* CudaModel::getDeviceLightIds() const
 {
   return thrust::raw_pointer_cast(&lightTriangles[0]);
 }

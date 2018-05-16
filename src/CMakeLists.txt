@@ -1,7 +1,7 @@
 
 file(GLOB CXX_SRC *.cpp)
 file(GLOB CU_SRC *.cu)
-set_source_files_properties(App.cpp Model.cpp Camera.cpp Light.cpp Utils.cpp ModelLoader.cpp PROPERTIES LANGUAGE CUDA)
+set_source_files_properties(App.cpp CudaModel.cpp Camera.cpp Light.cpp Utils.cpp ModelLoader.cpp PROPERTIES LANGUAGE CUDA)
 
 file(GLOB SHADERS "shaders/*/*.glsl")
 source_group("shaders" FILES SHADERS)

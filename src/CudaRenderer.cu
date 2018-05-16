@@ -18,10 +18,13 @@
 #define OFFSET_EPSILON 0.00001f
 #define BIGT 99999.f
 #define AIR_INDEX 1.f
+#define MIN_PATHS 3
+#define RUSSIAN_PROB 0.8f
 
 enum RandDim
 {
 	SHADING = 0,
+	RUSSIAN,
 	LIGHT,
 	DIFF0,
 	DIFF1,
@@ -79,7 +82,7 @@ __device__ inline float scramble(const uint32_t scrambleConstant, const float f)
 	return r;
 }
 
-__device__ float bboxIntersect(const AABB box, const float3 origin,	const float3 inverseDirection, float& t)
+__device__ float bboxIntersect(const AABB box, const float3 origin,	const float3 inverseDirection)
 {
 	float3 tmin = make_float3(-BIGT, -BIGT, -BIGT), tmax = make_float3(BIGT, BIGT, BIGT);
 
@@ -202,8 +205,8 @@ __device__ RaycastResult rayCast(const Ray ray, const Node* bvh,
 			const AABB leftBox = bvh[stack[ptr] + 1].bbox;
 			const AABB rightBox = bvh[currentNode.rightIndex].bbox;
 
-			float leftt = bboxIntersect(leftBox, ray.origin, inverseDirection,	leftt);
-			float rightt = bboxIntersect(rightBox, ray.origin, inverseDirection, rightt);
+			float leftt = bboxIntersect(leftBox, ray.origin, inverseDirection);
+			float rightt = bboxIntersect(rightBox, ray.origin, inverseDirection);
 
 			uint32_t hitMask = leftt != -1.f ? LEFT_HIT_BIT : 0x00;
 			hitMask = rightt != -1.f ? hitMask | RIGHT_HIT_BIT : hitMask;
@@ -267,31 +270,43 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 {
 	const uint32_t x = threadIdx.x + blockIdx.x * blockDim.x;
 	const uint32_t y = threadIdx.y + blockIdx.y * blockDim.y;
-	const uint32_t idx = x + y * canvasSize.x;
+	const uint32_t pathIdx = x + y * canvasSize.x;
 
 	const float3 float3_zero = make_float3(0.f, 0.f, 0.f);
 
 	if (x >= canvasSize.x || y >= canvasSize.y)
 		return;
 
-	const uint32_t scrambleConstant = paths.scrambleConstants[idx];
+	const uint32_t scrambleConstant = paths.scrambleConstants[pathIdx];
 	const float rf = scramble(scrambleConstant, paths.floats[RandDim::SHADING]);
 
-	const RaycastResult result = paths.result[idx];
-	const uint32_t rayNr = paths.rayNr[idx];
+	const RaycastResult result = paths.result[pathIdx];
+	const uint32_t rayNr = paths.rayNr[pathIdx];
 
-	if (!result || rayNr >= 10)
+	if (!result)
 	{
 		const uint32_t new_idx = atomicAggInc(queues.newPathQueueSize);
-		queues.newPathQueue[new_idx] = idx;
+		queues.newPathQueue[new_idx] = pathIdx;
 
 		if (rayNr == 1)
-			paths.color[idx] = make_float3(0.3f, 0.3f, 0.3f);
+			paths.color[pathIdx] = make_float3(0.3f, 0.3f, 0.3f);
 
 		return;
+	}else if (rayNr >= MIN_PATHS)
+	{
+		const float rr = scramble(scrambleConstant, paths.floats[RandDim::RUSSIAN]);
+
+		if (rr > RUSSIAN_PROB) // terminated by Russian roulette
+		{
+			const uint32_t new_idx = atomicAggInc(queues.newPathQueueSize);
+			queues.newPathQueue[new_idx] = pathIdx;
+			return;
+		}
+
+		paths.p[pathIdx] *= RUSSIAN_PROB;
 	}
 
-	const Ray ray = paths.ray[idx];
+	const Ray ray = paths.ray[pathIdx];
 	const float3 normal = triangles[result.triangleIdx].normal(result.uv);
 	const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 
@@ -331,17 +346,17 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 					if (rf < diffuseTreshold)
 					{
 						new_idx = atomicAggInc(queues.diffuseQueueSize);
-						queues.diffuseQueue[new_idx] = idx;
+						queues.diffuseQueue[new_idx] = pathIdx;
 					}else if (rf > diffuseTreshold && rf < specularTreshold)
 					{
 						 new_idx = atomicAggInc(queues.specularQueueSize);
-						 queues.specularQueue[new_idx] = idx;
-						 paths.throughput[idx] = paths.throughput[idx] * material.colorSpecular * twoR;
+						 queues.specularQueue[new_idx] = pathIdx;
+						 paths.throughput[pathIdx] *= material.colorSpecular * twoR;
 					}else
 					{
 						 new_idx = atomicAggInc(queues.transparentQueueSize);
-						 queues.transparentQueue[new_idx] = idx;
-						 paths.throughput[idx] = paths.throughput[idx] * material.colorTransparent * (2.f-twoR);
+						 queues.transparentQueue[new_idx] = pathIdx;
+						 paths.throughput[pathIdx] *= material.colorTransparent * (2.f-twoR);
 					}
 
 					break;
@@ -357,18 +372,18 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 				if (rf < diffuseTreshold)
 				{
 					new_idx = atomicAggInc(queues.diffuseQueueSize);
-					queues.diffuseQueue[new_idx] = idx;
+					queues.diffuseQueue[new_idx] = pathIdx;
 				}else
 				{
 					 new_idx = atomicAggInc(queues.specularQueueSize);
-					 queues.specularQueue[new_idx] = idx;
+					 queues.specularQueue[new_idx] = pathIdx;
 				}
 			}
 			break;
 
 		default:
 			new_idx = atomicAggInc(queues.diffuseQueueSize);
-			queues.diffuseQueue[new_idx] = idx;
+			queues.diffuseQueue[new_idx] = pathIdx;
 			break;
 	}
 
@@ -831,7 +846,7 @@ CudaRenderer::~CudaRenderer()
 }
 
 void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
-		Model& model)
+		CudaModel& model)
 {
 	if (model.getNTriangles() == 0)
 		return;

@@ -21,7 +21,7 @@ App::App() :
 #ifdef ENABLE_CUDA
     cudaRenderer(),
 #endif
-    model(),
+    cudaModel(),
     glcanvas(glm::ivec2(WWIDTH, WHEIGHT)),
     camera(),
     loader()
@@ -57,14 +57,14 @@ void App::MainLoop()
     float dTime = glcontext.getDTime();
     handleControl(dTime);
 
-    cudaRenderer.pathTraceToCanvas(glcanvas, camera, model);
+    cudaRenderer.pathTraceToCanvas(glcanvas, camera, cudaModel);
     glcontext.draw(glcanvas);
 
     glcontext.drawUI();
     glcontext.swapBuffers();
   }
 
-  if (model.getNTriangles() != 0) // Check if model is loaded
+  if (cudaModel.getNTriangles() != 0) // Check if model is loaded
     createSceneFile(LAST_SCENEFILE_NAME);
 }
 
@@ -203,7 +203,7 @@ void App::addLight()
   const glm::mat4 v = camera.getView();
   const glm::mat4 tform = glm::inverse(v);
 
-  model.addLight(tform);
+  cudaModel.addLight(tform);
 }
 
 void App::createSceneFile(const std::string& filename)
@@ -223,7 +223,7 @@ void App::createSceneFile(const std::string& filename)
     return;
   }
 
-  std::string modelName = model.getFileName();
+  std::string modelName = cudaModel.getFileName();
   sceneFile << modelName << std::endl;
   sceneFile << camera << std::endl;
 
@@ -234,7 +234,7 @@ void App::createSceneFile(const std::string& filename)
 
 void App::loadModel(const std::string& modelFile)
 {
-  model = loader.loadOBJ(modelFile);
+  cudaModel = loader.loadCudaModel(modelFile);
   cudaRenderer.reset();
 }
 
@@ -277,7 +277,7 @@ void App::pathTraceToFile(const std::string& sceneFile, const std::string& outfi
 
   for (int i = 0; i < paths; ++i)
   {
-    cudaRenderer.pathTraceToCanvas(glcanvas, camera, model);
+    cudaRenderer.pathTraceToCanvas(glcanvas, camera, cudaModel);
   }
 
   cudaEventRecord(stop);

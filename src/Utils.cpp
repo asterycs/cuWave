@@ -1,5 +1,5 @@
 #include "Utils.hpp"
-#include "Model.hpp"
+#include "Triangle.hpp"
 
 #include <fstream>
 

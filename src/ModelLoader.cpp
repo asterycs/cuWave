@@ -20,16 +20,11 @@ std::ostream& operator<<(std::ostream&os, const float3& v)
 	return os;
 }
 
-Model ModelLoader::loadOBJ(const std::string& path)
+bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triangles, std::vector<uint32_t>& triangleMaterialIds, std::vector<uint32_t>& lightTriangles, std::vector<Material>& materials, std::vector<std::vector<uint32_t>>& materialIds) const
 {
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> tinymaterials;
-
-  std::vector<Triangle> triangles;
-  std::vector<Material> materials;
-  std::vector<unsigned int> triangleMaterialIds;
-  std::vector<unsigned int> lightTriangles;
 
   size_t fileMarker;
   fileMarker = path.find_last_of("/\\");
@@ -44,7 +39,7 @@ Model ModelLoader::loadOBJ(const std::string& path)
   {
     std::cerr << "Couldn't load model" << std::endl;
 
-    return Model();
+    return false;
   }
 
   const float m = std::numeric_limits<float>::max();
@@ -97,10 +92,14 @@ Model ModelLoader::loadOBJ(const std::string& path)
 	defaultMaterial.colorTransparent = make_float3(0.f, 0.f, 0.f);
 	materials.push_back(defaultMaterial);
 
-  for (size_t s = 0; s < shapes.size(); s++) {
+  for (size_t s = 0; s < shapes.size(); s++)
+  {
     size_t index_offset = 0;
 
-    for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+    std::vector<uint32_t> meshIds;
+
+    for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
+    {
       size_t fv = shapes[s].mesh.num_face_vertices[f];
 
       Triangle triangle;
@@ -108,6 +107,8 @@ Model ModelLoader::loadOBJ(const std::string& path)
 
       for (size_t v = 0; v < fv; v++) {
         tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+
+        meshIds.push_back(static_cast<uint32_t>(idx.vertex_index));
 
         tinyobj::real_t vx = attrib.vertices[3*idx.vertex_index+0];
         tinyobj::real_t vy = attrib.vertices[3*idx.vertex_index+1];
@@ -160,6 +161,8 @@ Model ModelLoader::loadOBJ(const std::string& path)
       if (material.colorEmission.x != 0.f || material.colorEmission.y != 0.f || material.colorEmission.z != 0.f)
         lightTriangles.push_back(triangles.size() - 1);
     }
+
+    materialIds.push_back(meshIds);
   }
 
   const float3 bbDiagonal = maxv - minv;
@@ -174,10 +177,40 @@ Model ModelLoader::loadOBJ(const std::string& path)
 	  }
   }
 
-  std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
+  return true;
+}
 
-  Model model(triangles, materials, triangleMaterialIds, lightTriangles, path);
+CudaModel ModelLoader::loadCudaModel(const std::string& path) const
+{
+	std::vector<Triangle> triangles;
+	std::vector<uint32_t> triangleMaterialIds;
+	std::vector<uint32_t> lightTriangles;
+	std::vector<Material> materials;
+	std::vector<std::vector<uint32_t>> materialIds;
 
-  return model;
+	loadOBJ(path, triangles, triangleMaterialIds, lightTriangles, materials, materialIds);
+
+	std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
+
+	CudaModel model(triangles, materials, triangleMaterialIds, lightTriangles, path);
+
+	return model;
+}
+
+GLModel ModelLoader::loadGLModel(const std::string& path) const
+{
+	std::vector<Triangle> triangles;
+	std::vector<uint32_t> triangleMaterialIds;
+	std::vector<uint32_t> lightTriangles;
+	std::vector<Material> materials;
+	std::vector<std::vector<uint32_t>> materialIds;
+
+	loadOBJ(path, triangles, triangleMaterialIds, lightTriangles, materials, materialIds);
+
+	std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
+
+	GLModel model(triangles, materials, materialIds, path);
+
+	return model;
 }
 
