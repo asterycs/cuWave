@@ -4,8 +4,14 @@
 
 #include <imgui.h>
 
+glm::fvec3 cudaf32glmf3(const float3 in)
+{
+	return glm::fvec3(in.x, in.y, in.z);
+}
+
 GLContext::GLContext() :
   canvasShader(),
+  modelShader(),
   window(nullptr),
   size(WWIDTH, WHEIGHT),
   ui()
@@ -88,6 +94,7 @@ GLContext::GLContext() :
   });
 
   canvasShader.loadShader("shaders/canvas/vshader.glsl", "shaders/canvas/fshader.glsl");
+  modelShader.loadShader("shaders/model/vshader.glsl", "shaders/model/fshader.glsl");
   
   std::cout << "OpenGL context initialized" << std::endl;
 }
@@ -100,7 +107,7 @@ GLContext::~GLContext()
 
 bool GLContext::shadersLoaded() const
 {
-  if (canvasShader.isLoaded())
+  if (canvasShader.isLoaded() && modelShader.isLoaded())
     return true;
   else
     return false;
@@ -198,7 +205,7 @@ void GLContext::draw(const GLTexture& canvas)
    canvasShader.bind();
    GL_CHECK(glBindTexture(GL_TEXTURE_2D, canvas.getTextureID()));
    
-   // GLint posID = canvasShader.getAttribLocation("texture");
+   //canvasShader.getAttribLocation("texture");
    canvasShader.updateUniform1i("texture", 0);
   
    GLuint dummyVao;
@@ -210,6 +217,41 @@ void GLContext::draw(const GLTexture& canvas)
    GL_CHECK(glBindVertexArray(0));
    GL_CHECK(glDeleteVertexArrays(1, &dummyVao));
    canvasShader.unbind();
+}
+
+void GLContext::draw(const GLModel& model, const Camera& camera)
+{
+	if (!shadersLoaded())
+		return;
+
+	GL_CHECK(glViewport(0,0,size.x, size.y));
+	GL_CHECK(glCullFace(GL_BACK));
+	GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+	GL_CHECK(glDepthFunc(GL_LEQUAL));
+
+	const auto& vaoID = model.getVaoID();
+	const auto& materialIds = model.getMaterialIds();
+	const auto& materials = model.getMaterials();
+
+	modelShader.bind();
+	modelShader.updateUniformMat4f("posToCamera", camera.getMVP(size));
+	//modelShader.updateUniformMat3f("normalToCamera", glm::mat3(glm::transpose(glm::inverse(camera.getMVP(size)))));
+
+	GL_CHECK(glBindVertexArray(vaoID));
+
+	for (std::size_t i = 0; i < materialIds.size(); ++i)
+	{
+		const auto material = materials[i];
+
+		modelShader.updateUniform3fv("material.colorAmbient", cudaf32glmf3(material.colorAmbient));
+		modelShader.updateUniform3fv("material.colorDiffuse", cudaf32glmf3(material.colorDiffuse));
+		//modelShader.updateUniform3fv("material.colorSpecular", material.colorSpecular);
+
+		GL_CHECK(glDrawElements(GL_TRIANGLES, materialIds[i].size(), GL_UNSIGNED_INT, materialIds[i].data()));
+	}
+
+	GL_CHECK(glBindVertexArray(0));
+	modelShader.unbind();
 }
 
 glm::ivec2 GLContext::getSize() const

@@ -105,10 +105,9 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
       Triangle triangle;
       bool compute_normal(false);
 
-      for (size_t v = 0; v < fv; v++) {
+      for (size_t v = 0; v < fv; v++)
+      {
         tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-
-        meshIds.push_back(static_cast<uint32_t>(idx.vertex_index));
 
         tinyobj::real_t vx = attrib.vertices[3*idx.vertex_index+0];
         tinyobj::real_t vy = attrib.vertices[3*idx.vertex_index+1];
@@ -147,6 +146,10 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
         triangle.vertices[1].n = n;
         triangle.vertices[2].n = n;
       }
+
+      meshIds.push_back(static_cast<uint32_t>(3*triangles.size()));
+      meshIds.push_back(static_cast<uint32_t>(3*triangles.size()+1));
+      meshIds.push_back(static_cast<uint32_t>(3*triangles.size()+2));
 
       triangles.push_back(triangle);
 

@@ -6,7 +6,7 @@
 #include <cmath>
 
 
-CudaModel::CudaModel() : nTriangles(0)
+CudaModel::CudaModel() : addedLights(0)
 {
   
 }
@@ -14,6 +14,22 @@ CudaModel::CudaModel() : nTriangles(0)
 CudaModel::~CudaModel()
 {
 
+}
+
+void CudaModel::clearLights()
+{
+	for (int i = 0; i < addedLights; ++i)
+	{
+		triangleMaterialIds.pop_back();
+		triangleMaterialIds.pop_back();
+
+		triangles.pop_back();
+		triangles.pop_back();
+	}
+
+	addedLights = 0;
+
+	rebuild();
 }
 
 void CudaModel::addLight(const glm::mat4 tform)
@@ -45,17 +61,19 @@ void CudaModel::addLight(const glm::mat4 tform)
 	for (unsigned int i = 0; i < 2; ++i)
 		triangles.push_back(Triangle(vertices[i*3], vertices[i*3+1], vertices[i*3+2]));
 
-	triangleMaterialIds.push_back(nMaterials-2);
-	triangleMaterialIds.push_back(nMaterials-2);
+	triangleMaterialIds.push_back(materials.size()-2);
+	triangleMaterialIds.push_back(materials.size()-2);
 
 	lightTriangles.push_back(triangles.size()-1);
 	lightTriangles.push_back(triangles.size()-1);
+
+	++addedLights;
 
 	rebuild();
 }
 
 
-CudaModel::CudaModel(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<uint32_t> triMatIds, std::vector<uint32_t> lightTriangles, const std::string& fileName) : fileName(fileName)
+CudaModel::CudaModel(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<uint32_t> triMatIds, std::vector<uint32_t> lightTriangles, const std::string& fileName) : addedLights(0), fileName(fileName)
 {
   std::cout << "Building BVH..." << std::endl;
   BVHBuilder bvhbuilder;
@@ -71,11 +89,9 @@ CudaModel::CudaModel(std::vector<Triangle> triangles, std::vector<Material> mate
   this->triangleMaterialIds = newTriMatIds;
   this->lightTriangles = newLightTriangles;
   this->bvh = bvh;
-  this->nMaterials = materials.size();
+
   std::cout << "Done!" << std::endl;
 
-  nMaterials = materials.size();
-  nTriangles = triangles.size();
 }
 
 void CudaModel::rebuild()
@@ -93,8 +109,6 @@ void CudaModel::rebuild()
   this->lightTriangles = bvhbuilder.getLightTriangleIds();
   this->bvh = bvhbuilder.getBVH();
   std::cout << "Done!" << std::endl;
-
-  nTriangles = triangles.size();
 }
 
 const Triangle* CudaModel::getDeviceTriangles() const
@@ -129,7 +143,7 @@ const Node* CudaModel::getDeviceBVH() const
 
 uint32_t CudaModel::getNTriangles() const
 {
-  return nTriangles;
+  return triangles.size();
 }
 
 uint32_t CudaModel::getNLights() const

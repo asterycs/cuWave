@@ -5,7 +5,7 @@ RUNS="$2"
 if [ -z "$RUNS" ]; then
   PATHS=1
 fi
-OUT=$(./wavy -b -s "$SCENEFILE" -o out.png -p "$RUNS")
+OUT=$(./cuWave -b -s "$SCENEFILE" -o out.png -p "$RUNS")
 
 TIME=$(echo "$OUT" | grep "Rendering time" | awk '{print $NF}')
 

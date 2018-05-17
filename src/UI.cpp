@@ -39,6 +39,7 @@ void UI::draw()
   {
       ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
+      ImGui::Text("Path trace on/off: enter");
       ImGui::Text("Open model: O");
       ImGui::Text("Open scene file: Ctrl+O");
       ImGui::Text("Save scene file: Ctrl+S");

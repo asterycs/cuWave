@@ -9,6 +9,12 @@
 
 #define LAST_SCENEFILE_NAME "last.scene"
 
+enum ActiveRenderer
+{
+	OpenGL,
+	CUDA
+};
+
 class App { 
 public:
     // Singleton
@@ -40,6 +46,8 @@ public:
 private:
     App();
     ~App();
+
+    ActiveRenderer activeRenderer;
 
     bool mousePressed;
     glm::dvec2 mousePrevPos;

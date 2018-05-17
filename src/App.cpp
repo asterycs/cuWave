@@ -15,6 +15,7 @@
 #include <IL/ilut.h>
 
 App::App() :
+	activeRenderer(OpenGL),
     mousePressed(false),
     mousePrevPos(glcontext.getCursorPos()),
     glcontext(),
@@ -53,15 +54,30 @@ void App::MainLoop()
 {
   while (glcontext.isAlive())
   {
-    glcontext.clear();
-    float dTime = glcontext.getDTime();
-    handleControl(dTime);
 
-    cudaRenderer.pathTraceToCanvas(glcanvas, camera, cudaModel);
-    glcontext.draw(glcanvas);
+	glcontext.clear();
+	float dTime = glcontext.getDTime();
+	handleControl(dTime);
+
+	switch (activeRenderer)
+	{
+		case CUDA:
+		    cudaRenderer.pathTraceToCanvas(glcanvas, camera, cudaModel);
+		    glcontext.draw(glcanvas);
+		    break;
+
+		case OpenGL:
+		    glcontext.draw(glModel, camera);
+		    break;
+
+		default:
+			break;
+	}
+
 
     glcontext.drawUI();
     glcontext.swapBuffers();
+
   }
 
   if (cudaModel.getNTriangles() != 0) // Check if model is loaded
@@ -143,10 +159,18 @@ void App::scrollCallback(double /*xOffset*/, double yOffset)
 
 void App::keyboardCallback(int key, int /*scancode*/, int action, int modifiers)
 {
-
-  if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+  if (key == GLFW_KEY_ENTER && action == GLFW_PRESS)
   {
-    addLight();
+	  activeRenderer = static_cast<ActiveRenderer>((activeRenderer + 1) % 2);
+  }
+  else if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+  {
+	if (modifiers & GLFW_MOD_CONTROL)
+	{
+		cudaModel.clearLights();
+		cudaRenderer.reset();
+	}else
+		addLight();
   }
   else if (key == GLFW_KEY_O && action == GLFW_PRESS && (modifiers & GLFW_MOD_CONTROL))
   {
@@ -226,6 +250,16 @@ void App::createSceneFile(const std::string& filename)
   std::string modelName = cudaModel.getFileName();
   sceneFile << modelName << std::endl;
   sceneFile << camera << std::endl;
+  sceneFile << cudaModel.addedLights() << std::endl;
+
+  const std::vector<Triangle> triangles = cudaModel.getTriangles();
+  const std::vector<uint32_t> lightTriangles = cudaModel.getLightIds();
+  const std::vector<uint32_t> triangleMaterialIds = cudaModel.getMaterialIds();
+
+  for (int i = 0; i < cudaModel.addedLights(); ++i)
+  {
+	  sceneFile << ...
+  }
 
   sceneFile.close();
 
@@ -236,6 +270,8 @@ void App::loadModel(const std::string& modelFile)
 {
   cudaModel = loader.loadCudaModel(modelFile);
   cudaRenderer.reset();
+
+  glModel = loader.loadGLModel(modelFile);
 }
 
 void App::loadSceneFile(const std::string& filename)

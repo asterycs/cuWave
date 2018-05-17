@@ -14,6 +14,7 @@
 #include "GLTexture.hpp"
 #include "GLShader.hpp"
 #include "UI.hpp"
+#include "GLModel.hpp"
 
 
 
@@ -24,8 +25,7 @@ public:
   ~GLContext();
 
   void draw(const GLTexture& canvas);
-  void draw(const std::vector<glm::fvec3>& points, const Camera& camera);
-  void draw(const AABB& box, const Camera& camera);
+  void draw(const GLModel& model, const Camera& camera);
 
   void drawUI();
   bool UiWantsMouseInput();
@@ -52,7 +52,7 @@ private:
 
   GLuint loadShader(const char *vertex_path, const char *fragment_path);
   GLShader canvasShader;
-  GLShader textShader;
+  GLShader modelShader;
   GLFWwindow* window;
 
   glm::ivec2 size;

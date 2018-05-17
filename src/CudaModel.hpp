@@ -24,6 +24,7 @@ public:
   CudaModel& operator=(CudaModel&) = delete;
   CudaModel& operator=(CudaModel&&) = default;
 
+  void clearLights();
   void addLight(const glm::mat4 tform);
   void rebuild();
 
@@ -38,13 +39,12 @@ public:
   const Node* getDeviceBVH() const;
   const std::string& getFileName() const;
 private:
+  int addedLights;
+
   thrust::device_vector<Triangle> triangles;
   thrust::device_vector<Material> materials;
   thrust::device_vector<uint32_t> triangleMaterialIds;
   thrust::device_vector<uint32_t> lightTriangles;
-
-  uint32_t nTriangles;
-  uint32_t nMaterials;
 
   std::string fileName;
 

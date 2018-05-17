@@ -157,7 +157,7 @@ __device__ RaycastResult rayCast(const Ray ray, const Node* bvh,
 	const float3 inverseDirection = make_float3(1.f, 1.f, 1.f) / ray.direction;
 
 	int32_t ptr = 0;
-	unsigned int stack[16] { 0 };
+	uint32_t stack[16] { 0 };
 	int32_t i = -1;
 	float t = 0;
 	float2 uv;
@@ -487,6 +487,7 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	if (lightTriangles > 0) // TODO: Make check reduntant
 	{
 		// Choose light by uniform sampling
+		const float p = paths.p[pathIdx];
 		const float lightPdf = 1.f / lightTriangles;
 		const float lightF = paths.floats[RandDim::LIGHT];
 		const uint32_t lightIdx = lightF / lightPdf;
@@ -500,8 +501,6 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		const float4 pointPdf = triangles[lightTriangleIds[lightIdx]].sample(r0, r1);
 		const float3 shadowPoint = make_float3(pointPdf.x, pointPdf.y, pointPdf.z);
 
-		const float misWeight = powerHeuristic(lightPdf*pointPdf.w, CUDART_PI_F); // TODO: Check PI pdf
-
 		const float3 shadowRayDirection = shadowPoint - shadowRayOrigin;
 		const Ray shadowRay(shadowRayOrigin, normalize(shadowRayDirection));
 		const float shadowRayLength = length(shadowRayDirection);
@@ -514,10 +513,11 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 		if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
 		{
+			const float misWeight = powerHeuristic(p*lightPdf*pointPdf.w, 2*CUDART_PI_F);
 			const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
 
-			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * lightPdf * pointPdf.w) * lightEmission * cosL * cosOmega;
+			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * lightPdf * pointPdf.w * p) * lightEmission * cosL * cosOmega;
 		}
 
 
@@ -532,14 +532,14 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 		const RaycastResult brdfResult = rayCast<HitType::CLOSEST>(brdfRay, bvh, triangles, BIGT);
 
-		if (brdfResult.triangleIdx != result.triangleIdx)
+		if (brdfResult.triangleIdx == result.triangleIdx)
 		{
-			float weight = powerHeuristic(CUDART_PI_F, lightPdf*pointPdf.w);
+			const float misWeight = powerHeuristic(2*CUDART_PI_F, lightPdf*pointPdf.w*p);
 
 			const float cosOmega = __saturatef(dot(normalize(brdfDir), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(brdfDir), lightTriangle.normal()));
 
-			//directLightning += misWeight * 1.f / (length(brdfDir*brdfResult.t) * length(brdfDir*brdfResult.t) * CUDART_PI_F) * lightEmission * cosL * cosOmega;
+			directLightning += misWeight * 1.f / (length(brdfDir*brdfResult.t) * length(brdfDir*brdfResult.t) * 2* CUDART_PI_F * p) * lightEmission * cosL * cosOmega;
 		}
 	}
 
@@ -863,7 +863,6 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 	if (diffCamera != 0 || diffSize != 0)
 	{
 		lastCamera = camera;
-
 		reset();
 	}
 
