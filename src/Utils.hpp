@@ -86,8 +86,12 @@ struct Material
   float refractionIndex;
   enum ShadingMode
   {
+	  GORAUD = 1,
 	  HIGHLIGHT = 2,
+	  REFLECTION = 3,
+	  TRANSPARENCY_GLASS_REFLECTION = 4,
 	  REFLECTION_FRESNEL = 5,
+	  TRANSPARENCY_REFLECTION = 6,
 	  TRANSPARENCY_REFLECTION_FRESNEL = 7
   } mode;
 

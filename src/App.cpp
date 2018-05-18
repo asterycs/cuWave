@@ -323,7 +323,7 @@ void App::loadSceneFile(const std::string& filename)
   std::cout << "Loaded scene file " << filename << std::endl;
 }
 
-void App::pathTraceToFile(const std::string& sceneFile, const std::string& outfile, const int paths)
+void App::pathTraceToFile(const std::string& sceneFile, const std::string& outfile, const int iterations)
 {
   loadSceneFile(sceneFile);
 
@@ -333,8 +333,9 @@ void App::pathTraceToFile(const std::string& sceneFile, const std::string& outfi
 
   cudaEventRecord(start);
 
-  for (int i = 0; i < paths; ++i)
+  for (int i = 0; i < iterations; ++i)
   {
+	std::cout << "Iteration: " << i+1 << "/" << iterations << "  \r";
     cudaRenderer.pathTraceToCanvas(glcanvas, camera, cudaModel);
   }
 

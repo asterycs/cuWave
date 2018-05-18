@@ -56,14 +56,20 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
     material.colorSpecular = make_float3(tm.specular[0], tm.specular[1], tm.specular[2]);
     material.colorTransparent = make_float3(1-sqrtf(tm.transmittance[0]), 1-sqrtf(tm.transmittance[1]), 1-sqrtf(tm.transmittance[2]));
 
-    material.refractionIndex = tm.ior;
+	material.refractionIndex = tm.ior;
 
     switch (tm.illum)
     {
 		default:
 			std::cerr << "Unknown shading mode for material: " << tm.illum << std::endl;
+			material.mode = Material::HIGHLIGHT;
+			break;
+		case 1:
 		case 2:
+		case 3:
+		case 4:
 		case 5:
+		case 6:
 		case 7:
 			material.mode = static_cast<Material::ShadingMode>(tm.illum);
     }

@@ -11,8 +11,8 @@ CUDA_HOST_DEVICE Camera::Camera() :
   fov(glm::quarter_pi<float>()),
   near(0.001f),
   far(10.f),
-  moveSpeed(0.5f),
-  mouseSpeed(0.1f),
+  moveSpeed(1.0f),
+  mouseSpeed(0.5f),
   position(0.f, 0.f, 0.f),
   hAngle(0.0f),
   vAngle(0.0f)

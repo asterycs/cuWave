@@ -13,7 +13,7 @@ int main(int argc, char * argv[]) {
 
   options.add_options()
     ("b,batch",     "Batch render",         cxxopts::value<bool>(batch_render))
-    ("p,passes",    "Number of passes",      cxxopts::value<int>())
+    ("i,iterations","Number of iterations", cxxopts::value<int>())
     ("s,scene",     "Scene file",           cxxopts::value<std::string>(),  "FILE")
     ("o,output",    "Output file",          cxxopts::value<std::string>(),  "FILE");
 
@@ -36,21 +36,21 @@ int main(int argc, char * argv[]) {
         return 1;
       }
 
-      if (!optres.count("passes"))
+      if (!optres.count("iterations"))
       {
-        std::cerr << "Number of passes not specified" << std::endl;
+        std::cerr << "Number of iterations not specified" << std::endl;
         return 1;
       }
 
-      std::string scenefile = optres["scene"].as<std::string>();
-      std::string output = optres["output"].as<std::string>();
-      int passes = optres["passes"].as<int>();
+      const std::string scenefile = optres["scene"].as<std::string>();
+      const std::string output = optres["output"].as<std::string>();
+      const int iterations = optres["iterations"].as<int>();
 
       try
       {
         App& app = App::getInstance();
 
-	    app.pathTraceToFile(scenefile, output, passes);
+	    app.pathTraceToFile(scenefile, output, iterations);
 
       }
       catch (std::exception& e)

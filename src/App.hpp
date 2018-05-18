@@ -41,7 +41,7 @@ public:
 
 #ifdef ENABLE_CUDA
     void rayTraceToFile(const std::string& sceneFile, const std::string& outFile);
-    void pathTraceToFile(const std::string& sceneFile, const std::string& outFile, const int paths);
+    void pathTraceToFile(const std::string& sceneFile, const std::string& outFile, const int iterations);
 #endif
 private:
     App();

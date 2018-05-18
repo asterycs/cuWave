@@ -34,7 +34,7 @@ void CudaModel::clearLights()
 
 void CudaModel::addLight(const glm::mat4 tform)
 {
-	const glm::vec2 lightSize(0.15f, 0.15f);
+	const glm::vec2 lightSize(0.02f, 0.02f);
 
 	const std::vector<glm::vec4> contour {
 		glm::vec4(-lightSize.x, lightSize.y, 0.0, 1.0),

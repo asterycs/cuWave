@@ -351,16 +351,16 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 					{
 						 new_idx = atomicAggInc(queues.specularQueueSize);
 						 queues.specularQueue[new_idx] = pathIdx;
-						 paths.throughput[pathIdx] *= material.colorSpecular * twoR;
+						 paths.throughput[pathIdx] *= material.colorSpecular / fmax_compf(material.colorSpecular);
 					}else
 					{
 						 new_idx = atomicAggInc(queues.transparentQueueSize);
 						 queues.transparentQueue[new_idx] = pathIdx;
-						 paths.throughput[pathIdx] *= material.colorTransparent * (2.f-twoR);
+						 paths.throughput[pathIdx] *= material.colorTransparent / fmax_compf(material.colorTransparent);
 					}
 
 					break;
-				} // Total reflection, handle as reflection using falltrough. Not entirely correct.
+				}
 			}
 
 		case (Material::REFLECTION_FRESNEL):
@@ -377,6 +377,7 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 				{
 					 new_idx = atomicAggInc(queues.specularQueueSize);
 					 queues.specularQueue[new_idx] = pathIdx;
+					 paths.throughput[pathIdx] *= material.colorSpecular / fmax_compf(material.colorSpecular);
 				}
 			}
 			break;
