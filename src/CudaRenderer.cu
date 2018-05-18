@@ -351,7 +351,7 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 					{
 						 new_idx = atomicAggInc(queues.specularQueueSize);
 						 queues.specularQueue[new_idx] = pathIdx;
-						 paths.throughput[pathIdx] *= material.colorSpecular / fmax_compf(material.colorSpecular);
+						 paths.throughput[pathIdx] *= material.colorSpecular / fmax_compf(material.colorSpecular); // Rather this that precompute and increase memory pressure by storing a ratio between specular and transparent
 					}else
 					{
 						 new_idx = atomicAggInc(queues.transparentQueueSize);
@@ -365,9 +365,20 @@ __global__ void logicKernel(const glm::ivec2 canvasSize, Queues queues,
 
 		case (Material::REFLECTION_FRESNEL):
 			{
-				const float total = length(material.colorDiffuse) + length(material.colorSpecular);
+				const float idx1 = AIR_INDEX;
+				const float idx2 = material.refractionIndex;
+				const bool outside = dot(ray.direction, normal) < 0.f;
+				float3 flippedNormal = normal;
+
+				if (!outside)
+					flippedNormal = -normal;
+
+				const float cosi = dot(ray.direction, -flippedNormal);
+
+				const float sin2t = abs((idx1 / idx2) * (idx1 / idx2) * (1 - cosi * cosi));
+				const float twoR = outside ? 2.f*fresnelReflectioncoefficient(sin2t, cosi, idx1, idx2): 1.f;
+				const float total = length(material.colorDiffuse) + twoR * length(material.colorSpecular) + (2.f-twoR) * length(material.colorTransparent);
 				const float diffuseTreshold = length(material.colorDiffuse) / total;
-				const float specularTreshold = diffuseTreshold + length(material.colorSpecular) / total;
 
 				if (rf < diffuseTreshold)
 				{
@@ -540,7 +551,7 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 			const float cosOmega = __saturatef(dot(normalize(brdfDir), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(brdfDir), lightTriangle.normal()));
 
-			directLightning += misWeight * 1.f / (length(brdfDir*brdfResult.t) * length(brdfDir*brdfResult.t) * 2* CUDART_PI_F * p) * lightEmission * cosL * cosOmega;
+			directLightning += misWeight * 1.f / (length(brdfDir*brdfResult.t) * length(brdfDir*brdfResult.t) * 2 * CUDART_PI_F * p) * lightEmission * cosL * cosOmega;
 		}
 	}
 

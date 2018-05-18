@@ -335,7 +335,7 @@ void App::pathTraceToFile(const std::string& sceneFile, const std::string& outfi
 
   for (int i = 0; i < iterations; ++i)
   {
-	std::cout << "Iteration: " << i+1 << "/" << iterations << "  \r";
+	std::cout << "Iteration: " << i+1 << "/" << iterations << "  \r" << std::flush;
     cudaRenderer.pathTraceToCanvas(glcanvas, camera, cudaModel);
   }
 
