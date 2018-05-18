@@ -18,7 +18,7 @@ CudaModel::~CudaModel()
 
 void CudaModel::clearLights()
 {
-	for (int i = 0; i < addedLights; ++i)
+	for (std::size_t i = 0; i < addedLights; ++i)
 	{
 		triangleMaterialIds.pop_back();
 		triangleMaterialIds.pop_back();
@@ -67,7 +67,20 @@ void CudaModel::addLight(const glm::mat4 tform)
 	lightTriangles.push_back(triangles.size()-1);
 	lightTriangles.push_back(triangles.size()-1);
 
-	++addedLights;
+	addedLights += 2;
+
+	rebuild();
+}
+
+void CudaModel::addLights(const std::vector<Triangle>& lightTriangles, const std::vector<uint32_t> materialIds)
+{
+	for (std::size_t i = 0; i < lightTriangles.size(); ++i)
+	{
+		triangles.push_back(lightTriangles[i]);
+		triangleMaterialIds.push_back(materialIds[i]);
+	}
+
+	addedLights += lightTriangles.size();
 
 	rebuild();
 }
@@ -154,4 +167,24 @@ uint32_t CudaModel::getNLights() const
 const uint32_t* CudaModel::getDeviceLightIds() const
 {
   return thrust::raw_pointer_cast(&lightTriangles[0]);
+}
+
+uint32_t CudaModel::getNAddedLights() const
+{
+	return addedLights;
+}
+
+thrust::host_vector<Triangle> CudaModel::getTriangles() const
+{
+	return triangles;
+}
+
+thrust::host_vector<uint32_t> CudaModel::getLightIds() const
+{
+	return triangleMaterialIds;
+}
+
+thrust::host_vector<uint32_t> CudaModel::getTriangleMaterialIds() const
+{
+	return triangleMaterialIds;
 }

@@ -43,7 +43,8 @@ void UI::draw()
       ImGui::Text("Open model: O");
       ImGui::Text("Open scene file: Ctrl+O");
       ImGui::Text("Save scene file: Ctrl+S");
-
+      ImGui::Text("Add light: Space");
+      ImGui::Text("Clear lights: Ctrl+Space");
 
       if (ImGui::BeginPopupContextWindow())
       {

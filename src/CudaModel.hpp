@@ -26,7 +26,14 @@ public:
 
   void clearLights();
   void addLight(const glm::mat4 tform);
+  void addLights(const std::vector<Triangle>& lightTriangles, const std::vector<uint32_t> materialIds);
   void rebuild();
+
+  uint32_t getNAddedLights() const;
+
+  thrust::host_vector<Triangle> getTriangles() const;
+  thrust::host_vector<uint32_t> getLightIds() const;
+  thrust::host_vector<uint32_t> getTriangleMaterialIds() const;
 
   const Triangle* getDeviceTriangles() const;
   const Material* getDeviceMaterials() const;
@@ -39,7 +46,7 @@ public:
   const Node* getDeviceBVH() const;
   const std::string& getFileName() const;
 private:
-  int addedLights;
+  uint32_t addedLights;
 
   thrust::device_vector<Triangle> triangles;
   thrust::device_vector<Material> materials;

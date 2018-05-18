@@ -250,15 +250,16 @@ void App::createSceneFile(const std::string& filename)
   std::string modelName = cudaModel.getFileName();
   sceneFile << modelName << std::endl;
   sceneFile << camera << std::endl;
-  sceneFile << cudaModel.addedLights() << std::endl;
+  sceneFile << cudaModel.getNAddedLights() << std::endl;
 
-  const std::vector<Triangle> triangles = cudaModel.getTriangles();
-  const std::vector<uint32_t> lightTriangles = cudaModel.getLightIds();
-  const std::vector<uint32_t> triangleMaterialIds = cudaModel.getMaterialIds();
+  const thrust::host_vector<Triangle> triangles = cudaModel.getTriangles();
+  const thrust::host_vector<uint32_t> lightTriangles = cudaModel.getLightIds();
+  const thrust::host_vector<uint32_t> triangleMaterialIds = cudaModel.getTriangleMaterialIds();
 
-  for (int i = 0; i < cudaModel.addedLights(); ++i)
+  for (std::size_t i = 0; i < cudaModel.getNAddedLights(); ++i)
   {
-	  sceneFile << ...
+	  sceneFile << triangles[triangles.size() - 1 - i] << std::endl;
+	  sceneFile << triangleMaterialIds[triangleMaterialIds.size() - 1 - i] << std::endl;
   }
 
   sceneFile.close();
@@ -296,6 +297,27 @@ void App::loadSceneFile(const std::string& filename)
   loadModel(modelName);
 
   sceneFile >> camera;
+
+  uint32_t additionalLights;
+  sceneFile >> additionalLights;
+
+  std::vector<Triangle> additionalLightTriangles;
+  std::vector<uint32_t> additionalLightMaterialIds;
+
+  for (std::size_t i = 0; i < additionalLights; ++i)
+  {
+	  Triangle lightTriangle;
+	  uint32_t materialId;
+
+	  sceneFile >> lightTriangle;
+	  sceneFile >> materialId;
+
+	  additionalLightTriangles.push_back(lightTriangle);
+	  additionalLightMaterialIds.push_back(materialId);
+  }
+
+  cudaModel.addLights(additionalLightTriangles, additionalLightMaterialIds);
+
   sceneFile.close();
 
   std::cout << "Loaded scene file " << filename << std::endl;
