@@ -20,8 +20,7 @@ void CudaRenderer::reset()
 	callcntr = 0;
 
 	dim3 block(BLOCKWIDTH, BLOCKWIDTH);
-	dim3 grid((lastSize.x + block.x - 1) / block.x,
-			(lastSize.y + block.y - 1) / block.y);
+	dim3 grid((lastSize.x + block.x - 1) / block.x, (lastSize.y + block.y - 1) / block.y);
 
 	resetAllPaths<<<grid, block>>>(paths, lastCamera, lastSize);
 	CUDA_CHECK(cudaDeviceSynchronize());

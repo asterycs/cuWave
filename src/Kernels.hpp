@@ -12,6 +12,8 @@
 enum RandDim
 {
 	SHADING = 0,
+	AAX,
+	AAY,
 	RUSSIAN,
 	LIGHT,
 	DIFF0,
@@ -479,8 +481,13 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 	const Ray ray = paths.ray[pathIdx];
 	const float3 hitNormal = triangles[result.triangleIdx].normal();
+	const bool outside = dot(ray.direction, hitNormal) < 0.f;
+	float3 flippedNormal = hitNormal;
 
-	const float3 shadowRayOrigin = ray.origin + ray.direction*result.t + hitNormal * OFFSET_EPSILON;
+	if (!outside)
+		flippedNormal = -hitNormal;
+
+	const float3 shadowRayOrigin = ray.origin + ray.direction*result.t + flippedNormal * OFFSET_EPSILON;
 
 	float3 directLightning = make_float3(0.f, 0.f, 0.f);
 
@@ -513,13 +520,12 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 		if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
 		{
-			const float misWeight = powerHeuristic(p*lightPdf*pointPdf.w, 2*CUDART_PI_F);
+			const float misWeight = powerHeuristic(p*pointPdf.w, 2*CUDART_PI_F);
 			const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
 
-			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * lightPdf * pointPdf.w * p) * lightEmission * cosL * cosOmega;
+			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * pointPdf.w * p) * lightEmission * cosL * cosOmega;
 		}
-
 
 		const float33 B = getBasis(hitNormal);
 
@@ -531,24 +537,35 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		const Ray brdfRay(shadowRayOrigin, brdfDir);
 
 		const RaycastResult brdfResult = rayCast<HitType::CLOSEST>(brdfRay, bvh, triangles, BIGT);
+		bool hitLight = false;
 
-		if (brdfResult.triangleIdx == result.triangleIdx)
+		for (int i = 0; i < lightTriangles; ++i) // TODO: ...
 		{
-			const float misWeight = powerHeuristic(2*CUDART_PI_F, lightPdf*pointPdf.w*p);
+			if (lightTriangleIds[i] == brdfResult.triangleIdx)
+				hitLight = true;
+		}
+
+		if (hitLight)
+		{
+			const float3 brdfHitEmission = materials[triangleMaterialIds[brdfResult.triangleIdx]].colorEmission;
+			const float misWeight = powerHeuristic(2*CUDART_PI_F, pointPdf.w*p);
 
 			const float cosOmega = __saturatef(dot(normalize(brdfDir), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(brdfDir), lightTriangle.normal()));
 
-			directLightning += misWeight * 1.f / (length(brdfDir*brdfResult.t) * length(brdfDir*brdfResult.t) * 2 * CUDART_PI_F * p) * lightEmission * cosL * cosOmega;
+			const float toLightLength = length(brdfDir*brdfResult.t);
+
+			directLightning += misWeight * 1.f / (toLightLength * toLightLength * 2 * CUDART_PI_F * p) * brdfHitEmission * cosL * cosOmega;
 		}
 	}
 
 	const float3 currentTroughput = paths.throughput[pathIdx];
-	const float3 filteredAmbient = currentTroughput * material.colorAmbient;
+	const float3 filteredAmbient = currentTroughput * material.colorAmbient * 0.25f;
 	const float3 filteredDiffuse = currentTroughput * material.colorDiffuse;
 	const float3 fiteredEmission = paths.rayNr[pathIdx] == 1 ? currentTroughput * material.colorEmission : make_float3(0.f, 0.f, 0.f);
 
 	paths.color[pathIdx] += fiteredEmission + filteredAmbient + directLightning * filteredDiffuse / CUDART_PI_F;
+
 }
 
 __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
@@ -566,9 +583,15 @@ __global__ void newPathsKernel(const glm::ivec2 canvasSize, const Queues queues,
 	const uint32_t xCoordinate = pathIdx % canvasSize.x;
 	const uint32_t yCoordinate = pathIdx / canvasSize.x;
 
-	const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(
-			xCoordinate, yCoordinate, canvasSize);
-	const Ray ray = camera.generateRay(nic, static_cast<float>(canvasSize.x) / canvasSize.y);
+	const uint32_t scrambleConstant = paths.scrambleConstants[idx];
+	const float rfx = scramble(scrambleConstant, paths.floats[RandDim::AAX]);
+	const float rfy = scramble(scrambleConstant, paths.floats[RandDim::AAY]);
+
+	const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(xCoordinate, yCoordinate, canvasSize);
+	const float xOffset = 0.5f / static_cast<float>(canvasSize.x) * (rfx * 2.0f - 1.f);
+	const float yOffset = 0.5f / static_cast<float>(canvasSize.y) * (rfy * 2.0f - 1.f);
+
+	const Ray ray = camera.generateRay(nic + glm::fvec2(xOffset, yOffset), static_cast<float>(canvasSize.x) / canvasSize.y);
 
 	paths.ray[pathIdx] = ray;
 
@@ -725,10 +748,8 @@ __global__ void resetAllPaths(Paths paths, Camera camera,
 	if (x >= canvasSize.x || y >= canvasSize.y)
 		return;
 
-	const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(
-			x, y, canvasSize);
-	const Ray ray = camera.generateRay(nic,
-			static_cast<float>(canvasSize.x) / canvasSize.y);
+	const glm::fvec2 nic = camera.normalizedImageCoordinateFromPixelCoordinate(x, y, canvasSize);
+	const Ray ray = camera.generateRay(nic,static_cast<float>(canvasSize.x) / canvasSize.y);
 
 	paths.ray[idx] = ray;
 	paths.color[idx] = make_float3(0.f, 0.f, 0.f);
