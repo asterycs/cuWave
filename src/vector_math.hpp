@@ -6,39 +6,32 @@
 #ifndef __CUDACC__
 #include <math.h>
 
-inline float fminf(float a, float b)
+inline float fminf(const float a, const float b)
 {
   return a < b ? a : b;
 }
 
-inline float fmaxf(float a, float b)
+inline float fmaxf(const float a, const float b)
 {
   return a > b ? a : b;
 }
 
-inline int max(int a, int b)
+inline int max(const int a, const int b)
 {
   return a > b ? a : b;
 }
 
-inline int min(int a, int b)
+inline int min(const int a, const int b)
 {
   return a < b ? a : b;
 }
 
-inline float rsqrtf(float x)
+inline float rsqrtf(const float x)
 {
     return 1.0f / sqrtf(x);
 }
 #endif
 
-
-
-
-inline __device__ __host__ float lerp(const float a, const float b, const float t)
-{
-  return a + t * (b - a);
-}
 
 inline __device__ __host__ float clamp(const float f, const float a, const float b)
 {
@@ -114,11 +107,6 @@ inline __host__ __device__ void operator/=(float2 &a, const float s)
   a *= inv;
 }
 
-inline __device__ __host__ float2 lerp(float2 a, float2 b, float t)
-{
-  return a + t*(b-a);
-}
-
 inline __device__ __host__ float2 clamp(const float2 v, const float a, const float b)
 {
   return make_float2(clamp(v.x, a, b), clamp(v.y, a, b));
@@ -148,11 +136,6 @@ inline __host__ __device__ float2 normalize(const float2 v)
 inline __host__ __device__ float2 floor(const float2 v)
 {
   return make_float2(floor(v.x), floor(v.y));
-}
-
-inline __host__ __device__ float2 reflect(const float2 i, const float2 n)
-{
-  return i - 2.0f * n * dot(n,i);
 }
 
 inline __host__ __device__ float2 fabs(const float2 v)
@@ -303,11 +286,6 @@ inline __host__ __device__ void operator/=(float3 &a, const float s)
   a *= inv;
 }
 
-inline __device__ __host__ float3 lerp(const float3 a, const float3 b, const float t)
-{
-  return a + t*(b-a);
-}
-
 inline __device__ __host__ bool operator!=(const float3 a, const float3 b)
 {
   return !(a.x == b.x && a.y == b.y && a.z == b.z);
@@ -316,11 +294,6 @@ inline __device__ __host__ bool operator!=(const float3 a, const float3 b)
 inline __device__ __host__ float3 clamp(const float3 v, const float a, const float b)
 {
   return make_float3(clamp(v.x, a, b), clamp(v.y, a, b), clamp(v.z, a, b));
-}
-
-inline __device__ __host__ float3 clamp(const float3 v, const float3 a, const float3 b)
-{
-  return make_float3(clamp(v.x, a.x, b.x), clamp(v.y, a.y, b.y), clamp(v.z, a.z, b.z));
 }
 
 inline __host__ __device__ float dot(const float3 a, const float3 b)
@@ -352,11 +325,6 @@ inline __host__ __device__ float3 normalize(const float3 v)
 inline __host__ __device__ float3 floor(const float3 v)
 {
   return make_float3(floor(v.x), floor(v.y), floor(v.z));
-}
-
-inline __host__ __device__ float3 reflect(const float3 i, const float3 n)
-{
-  return i - 2.0f * n * dot(n,i);
 }
 
 inline __host__ __device__ float3 fabs(float3 v)
