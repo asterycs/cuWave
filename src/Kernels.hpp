@@ -520,14 +520,14 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 		if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
 		{
-			const float misWeight = powerHeuristic(p*pointPdf.w, 2*CUDART_PI_F);
+			//const float misWeight = powerHeuristic(p*pointPdf.w, 2*CUDART_PI_F);
 			const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
 
-			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * pointPdf.w * p) * lightEmission * cosL * cosOmega;
+			directLightning += /*misWeight **/ 1.f / (shadowRayLength * shadowRayLength * pointPdf.w * p) * lightEmission * cosL * cosOmega;
 		}
 
-		const float33 B = getBasis(hitNormal);
+		/*const float33 B = getBasis(hitNormal);
 
 		float r2 = scramble(scrambleConstant, paths.floats[RandDim::DIFF2]);
 		float r3 = scramble(scrambleConstant, paths.floats[RandDim::DIFF3]);
@@ -556,15 +556,15 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 			const float toLightLength = length(brdfDir*brdfResult.t);
 
 			directLightning += misWeight * 1.f / (toLightLength * toLightLength * 2 * CUDART_PI_F * p) * brdfHitEmission * cosL * cosOmega;
-		}
+		}*/
 	}
 
 	const float3 currentTroughput = paths.throughput[pathIdx];
-	const float3 filteredAmbient = currentTroughput * material.colorAmbient * 0.25f;
+	//const float3 filteredAmbient = currentTroughput * material.colorAmbient * 0.25f;
 	const float3 filteredDiffuse = currentTroughput * material.colorDiffuse;
 	const float3 fiteredEmission = paths.rayNr[pathIdx] == 1 ? currentTroughput * material.colorEmission : make_float3(0.f, 0.f, 0.f);
 
-	paths.color[pathIdx] += fiteredEmission + filteredAmbient + directLightning * filteredDiffuse / CUDART_PI_F;
+	paths.color[pathIdx] += fiteredEmission /*+ filteredAmbient*/ + directLightning * filteredDiffuse / CUDART_PI_F;
 
 }
 
@@ -659,7 +659,7 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 }
 
 __global__ void
- specularKernel(
+ specularExtensionKernel(
 	 const glm::ivec2 canvasSize,
 	 const Queues queues,
 	 const Paths paths,
@@ -693,7 +693,7 @@ __global__ void
  }
 
 __global__ void
- transparentKernel(
+ transparentExtensionKernel(
 	 const glm::ivec2 canvasSize,
 	 const Queues queues,
 	 const Paths paths,
@@ -773,37 +773,6 @@ __global__ void castRays(Paths paths, const glm::ivec2 canvasSize,
 	const Ray ray = paths.ray[idx];
 	RaycastResult result = rayCast<HitType::CLOSEST>(ray, bvh, triangles, BIGT);
 	paths.result[idx] = result;
-}
-
-__global__ void generateRandom(curandStateSobol32* state, const glm::ivec2 size,
-		const uint32_t nRands, float* output)
-{
-	const int x = threadIdx.x + blockIdx.x * blockDim.x;
-	const int y = threadIdx.y + blockIdx.y * blockDim.y;
-
-	if (x >= size.x || y >= size.y)
-		return;
-
-	curandStateSobol32 localState = state[x + size.x * y];
-
-	for (uint32_t i = 0; i < nRands; ++i)
-		output[nRands * (x + y * size.x) + i] = curand_uniform(&localState);
-
-	state[x + size.x * y] = localState;
-}
-
-__global__ void initRand(const int seq, curandState_t* const curandStateDevPtr,
-		const glm::ivec2 size)
-{
-	const int x = threadIdx.x + blockIdx.x * blockDim.x;
-	const int y = threadIdx.y + blockIdx.y * blockDim.y;
-
-	if (x >= size.x || y >= size.y)
-		return;
-
-	curandState_t localState;
-	curand_init(x + y * size.x, seq, 0, &localState);
-	curandStateDevPtr[x + y * size.x] = localState;
 }
 
 #endif /* KERNELS_HPP_ */

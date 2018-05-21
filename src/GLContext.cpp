@@ -235,6 +235,7 @@ void GLContext::draw(const GLModel& model, const Camera& camera)
 
 	modelShader.bind();
 	modelShader.updateUniformMat4f("posToCamera", camera.getMVP(size));
+	modelShader.updateUniformVec3f("cameraWorldPos", camera.getPosition());
 	//modelShader.updateUniformMat3f("normalToCamera", glm::mat3(glm::transpose(glm::inverse(camera.getMVP(size)))));
 
 	GL_CHECK(glBindVertexArray(vaoID));
@@ -243,8 +244,8 @@ void GLContext::draw(const GLModel& model, const Camera& camera)
 	{
 		const auto material = materials[i];
 
-		modelShader.updateUniform3fv("material.colorAmbient", cudaf32glmf3(material.colorAmbient));
-		modelShader.updateUniform3fv("material.colorDiffuse", cudaf32glmf3(material.colorDiffuse));
+		modelShader.updateUniformVec3f("material.colorAmbient", cudaf32glmf3(material.colorAmbient));
+		modelShader.updateUniformVec3f("material.colorDiffuse", cudaf32glmf3(material.colorDiffuse));
 		//modelShader.updateUniform3fv("material.colorSpecular", material.colorSpecular);
 
 		GL_CHECK(glDrawElements(GL_TRIANGLES, materialIds[i].size(), GL_UNSIGNED_INT, materialIds[i].data()));

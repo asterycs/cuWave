@@ -114,7 +114,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 
 	CUDA_CHECK(cudaDeviceSynchronize());
 
-	specularKernel<<<grid, block>>>(
+	specularExtensionKernel<<<grid, block>>>(
 		canvasSize,
 		queues,
 		paths,
@@ -124,7 +124,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 	 CUDA_CHECK(cudaDeviceSynchronize());
 	 CUDA_CHECK(cudaMemset(queues.specularQueueSize, 0, sizeof(uint32_t)));
 
-	transparentKernel<<<grid, block>>>(
+	transparentExtensionKernel<<<grid, block>>>(
 		canvasSize,
 		queues,
 		paths,

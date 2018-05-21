@@ -103,7 +103,7 @@ void GLShader::unbind()
   GL_CHECK(glUseProgram(0));
 }
 
-void GLShader::updateUniform3fv(const std::string& identifier, const glm::fvec3& value)
+void GLShader::updateUniformVec3f(const std::string& identifier, const glm::fvec3& value)
 {
   GLint id;
   GL_CHECK(id = glGetUniformLocation(program, identifier.c_str()));
