@@ -229,8 +229,9 @@ void GLContext::draw(const GLModel& model, const Camera& camera)
 	GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, 0));
 	GL_CHECK(glDepthFunc(GL_LEQUAL));
 
-	const auto& vaoID = model.getVaoID();
-	const auto& materialIds = model.getMaterialIds();
+	const auto vaoID = model.getVaoID();
+	const auto indexID = model.getIndexID();
+	const auto meshSizes = model.getMeshSizes();
 	const auto& materials = model.getMaterials();
 
 	modelShader.bind();
@@ -239,16 +240,27 @@ void GLContext::draw(const GLModel& model, const Camera& camera)
 	//modelShader.updateUniformMat3f("normalToCamera", glm::mat3(glm::transpose(glm::inverse(camera.getMVP(size)))));
 
 	GL_CHECK(glBindVertexArray(vaoID));
+	GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexID));
 
-	for (std::size_t i = 0; i < materialIds.size(); ++i)
+	uint32_t currentOffset = 0;
+
+	uint32_t maxId = 0;
+	for (const auto& m : meshSizes)
+	    maxId += m;
+
+	for (std::size_t i = 0; i < meshSizes.size(); ++i)
 	{
 		const auto material = materials[i];
 
 		modelShader.updateUniformVec3f("material.colorAmbient", cudaf32glmf3(material.colorAmbient));
 		modelShader.updateUniformVec3f("material.colorDiffuse", cudaf32glmf3(material.colorDiffuse));
+
+		//std::cout << material.colorDiffuse.x << " " << material.colorDiffuse.y << " " << material.colorDiffuse.z << std::endl;
 		//modelShader.updateUniform3fv("material.colorSpecular", material.colorSpecular);
 
-		GL_CHECK(glDrawElements(GL_TRIANGLES, materialIds[i].size(), GL_UNSIGNED_INT, materialIds[i].data()));
+		GL_CHECK(glDrawRangeElements(GL_TRIANGLES, 0, maxId, meshSizes[i], GL_UNSIGNED_INT, reinterpret_cast<void*>(currentOffset * sizeof(GLuint))));
+
+		currentOffset += meshSizes[i];
 	}
 
 	GL_CHECK(glBindVertexArray(0));

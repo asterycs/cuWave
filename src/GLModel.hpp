@@ -15,18 +15,20 @@ public:
   ~GLModel();
 
   GLuint getVaoID() const;
+  GLuint getIndexID() const;
 
-  const std::vector<std::vector<uint32_t>>& getMaterialIds() const;
+  const std::vector<uint32_t>& getMeshSizes() const;
   const std::vector<Material>& getMaterials() const;
   const std::string getFileName() const;
 
 private:
-  std::vector<std::vector<uint32_t>> materialIds;
+  std::vector<uint32_t> meshSizes;
   std::vector<Material> materials;
   std::string fileName;
 
   GLuint vaoID;
   GLuint vboID;
+  GLuint indexID;
 };
 
 #endif

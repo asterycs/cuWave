@@ -16,7 +16,7 @@ GLModel::~GLModel()
 
 }
 
-GLModel::GLModel(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<std::vector<uint32_t>> materialIds, const std::string& fileName) : fileName(fileName)
+GLModel::GLModel(const std::vector<Triangle> triangles, const std::vector<Material> materials, const std::vector<std::vector<uint32_t>> materialIds, const std::string& fileName) : fileName(fileName)
 {
 	if (triangles.size() == 0 || materialIds.size() == 0)
 	{
@@ -53,14 +53,30 @@ GLModel::GLModel(std::vector<Triangle> triangles, std::vector<Material> material
 		(GLvoid*)offsetof(Vertex, n)
 	));
 
-	this->materialIds = materialIds;
+	std::vector<uint32_t> flattenedIds;
+	meshSizes.clear();
+
+	for (const auto& i : materialIds)
+	{
+	    flattenedIds.insert(flattenedIds.end(), i.begin(), i.end());
+	    meshSizes.push_back(i.size());
+	}
+
+    GL_CHECK(glGenBuffers(1, &indexID));
+    GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexID));
+    GL_CHECK(glBufferData(GL_ELEMENT_ARRAY_BUFFER, flattenedIds.size() * sizeof(uint32_t), flattenedIds.data(), GL_STATIC_DRAW));
 
 	GL_CHECK(glBindVertexArray(0));
 }
 
-const std::vector<std::vector<uint32_t>>& GLModel::getMaterialIds() const
+GLuint GLModel::getIndexID() const
 {
-	return materialIds;
+	return indexID;
+}
+
+const std::vector<uint32_t>& GLModel::getMeshSizes() const
+{
+  return meshSizes;
 }
 
 const std::vector<Material>& GLModel::getMaterials() const

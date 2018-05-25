@@ -18,7 +18,7 @@ out vec3 color;
 void main(){
     vec3 lightPos = cameraWorldPos;
     vec3 lightIntensity = vec3(1, 1, 1);
-    float cosTheta = clamp(dot(vnormal, -normalize(vec3(worldPos) - lightPos)), 0.f, 1.f);
+    float cosTheta = clamp(dot(normalize(vnormal), -normalize(vec3(worldPos) - lightPos)), 0.f, 1.f);
 
     vec3 ambient = material.colorAmbient * 0.25f;
     vec3 diffuse = material.colorDiffuse * cosTheta * lightIntensity;

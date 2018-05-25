@@ -199,7 +199,7 @@ CudaModel ModelLoader::loadCudaModel(const std::string& path) const
 
 	loadOBJ(path, triangles, triangleMaterialIds, lightTriangles, materials, materialIds);
 
-	std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
+	std::cout << "Creating CUDA model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
 
 	CudaModel model(triangles, materials, triangleMaterialIds, lightTriangles, path);
 
@@ -216,7 +216,7 @@ GLModel ModelLoader::loadGLModel(const std::string& path) const
 
 	loadOBJ(path, triangles, triangleMaterialIds, lightTriangles, materials, materialIds);
 
-	std::cout << "Creating model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
+	std::cout << "Creating GL model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
 
 	GLModel model(triangles, materials, materialIds, path);
 

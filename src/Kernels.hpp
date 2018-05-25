@@ -480,7 +480,7 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	const RaycastResult result = paths.result[pathIdx];
 	const Material material = materials[triangleMaterialIds[result.triangleIdx]];
 	const Ray ray = paths.ray[pathIdx];
-	const float3 hitNormal = triangles[result.triangleIdx].normal();
+	const float3 hitNormal = triangles[result.triangleIdx].normal(result.uv);
 	const bool outside = dot(ray.direction, hitNormal) < 0.f;
 	float3 flippedNormal = hitNormal;
 
