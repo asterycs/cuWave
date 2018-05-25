@@ -8,7 +8,9 @@
 #define AIR_INDEX 1.f
 #define MIN_PATHS 3
 #define RUSSIAN_PROB 0.8f
+#define PREGEN_RANDOM_DIMENSIONS 32
 
+// Helper enum for random dimension. Dimensions for extension rays are computed using ray index and EXT
 enum RandDim
 {
 	SHADING = 0,
@@ -20,8 +22,7 @@ enum RandDim
 	DIFF1,
 	DIFF2,
 	DIFF3,
-	EXT0,
-	EXT1
+	EXT
 };
 
 #define LEFT_HIT_BIT 0x80000000
@@ -629,6 +630,7 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 
 	const uint32_t pathIdx = queues.diffuseQueue[idx];
 	const uint32_t scrambleConstant = paths.scrambleConstants[idx];
+	const uint32_t rayNumber =  paths.rayNr[pathIdx];
 
 	const Ray ray = paths.ray[pathIdx];
 	const RaycastResult result = paths.result[pathIdx];
@@ -638,8 +640,12 @@ __global__ void diffuseExtensionKernel(const glm::ivec2 canvasSize,
 
 	float33 B = getBasis(hitNormal);
 
-	float r0 = scramble(scrambleConstant, paths.floats[RandDim::EXT0]);
-	float r1 = scramble(scrambleConstant, paths.floats[RandDim::EXT1]);
+	// Every bounce should have their unique random dimension. This one goes around after enough bounces. Not correct, to be fixed.
+	const uint32_t randomDimensionIndex0 = RandDim::EXT + (2*(rayNumber-1) % (PREGEN_RANDOM_DIMENSIONS - RandDim::EXT));
+	const uint32_t randomDimensionIndex1 = RandDim::EXT + (2*(rayNumber-1) % (PREGEN_RANDOM_DIMENSIONS - RandDim::EXT)) + 1;
+
+	float r0 = scramble(scrambleConstant, paths.floats[randomDimensionIndex0]);
+	float r1 = scramble(scrambleConstant, paths.floats[randomDimensionIndex1]);
 
 	float3 extensionDir = createDirection(r0, r1);
 
