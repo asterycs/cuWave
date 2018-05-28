@@ -19,6 +19,20 @@ CUDA_FUNCTION Triangle::Triangle(const Vertex v0, const Vertex v1, const Vertex 
 	vertices[2] = v2;
 }
 
+CUDA_FUNCTION bool Triangle::isInside(const AABB bbox) const
+{
+    for (int i = 0; i < 3; ++i)
+    {
+        const float3 p = vertices[i].p;
+
+        if (p.x >= bbox.min.x && p.x <= bbox.max.x && p.y >= bbox.min.y && p.y <= bbox.max.y && p.z >= bbox.min.z && p.z <= bbox.min.z)
+            return true;
+    }
+
+    return false;
+}
+
+
 CUDA_DEVICE_FUNCTION float4 Triangle::sample(float x, float y) const
 {
 	const float3 v0 = vertices[1].p - vertices[0].p;

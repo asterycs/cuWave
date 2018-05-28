@@ -65,7 +65,117 @@ void BVHBuilder::sortTrisOnAxis(const Node& node, const unsigned int axis)
           return l.first.center().z < r.first.center().z;
         });
   }
+}
 
+SplitCandidate BVHBuilder::proposeSplit(const Node& node, const enum SplitType splitType)
+{
+    if (splitType == SAH)
+    {
+        float minCost = std::numeric_limits<float>::max();
+        int minStep = -1;
+        const unsigned int a = node.bbox.maxAxis();
+
+        sortTrisOnAxis(node, a);
+
+        const int fStart = node.startTri;
+        const int fEnd = node.startTri + node.nTri - 1;
+
+        AABB fBox = trisWithIds[fStart].first.bbox();
+        std::vector<AABB> fBoxes(node.nTri - 1);
+
+        for (int i = fStart; i < fEnd; ++i)
+        {
+            fBox.add(trisWithIds[i].first);
+            fBoxes[i - node.startTri] = fBox;
+        }
+
+        AABB rBox = trisWithIds[fEnd].first.bbox();
+        std::vector<AABB> rBoxes(node.nTri - 1);
+
+        for (int i = fEnd - 1; i > fStart - 1; --i)
+        {
+            rBox.add(trisWithIds[i].first);
+            rBoxes[i - node.startTri] = rBox;
+        }
+
+        #pragma omp parallel for
+        for (int s = 1; s < node.nTri - 1; ++s)
+        {
+            const float currentCost = fBoxes[s - 1].area() * s + rBoxes[s - 1].area() * (node.nTri - s);
+
+            #pragma omp critical
+            if (currentCost < minCost)
+            {
+              minCost = currentCost;
+              minStep = s;
+            }
+        }
+
+        SplitCandidate splitCandidate;
+        splitCandidate.type = SAH;
+        splitCandidate.splitAxis = a;
+
+        splitCandidate.leftChild.startTri = node.startTri;
+        splitCandidate.leftChild.nTri = minStep;
+        splitCandidate.leftChild.bbox = fBoxes[minStep - 1];
+
+        splitCandidate.rightChild.startTri = node.startTri + minStep;
+        splitCandidate.rightChild.nTri = node.nTri - minStep;
+        splitCandidate.rightChild.bbox = rBoxes[minStep - 1];
+
+        return splitCandidate;
+    }else if (splitType == SPATIAL)
+    {
+        float minCost = std::numeric_limits<float>::max();
+        int minStep = -1;
+        const unsigned int a = node.bbox.maxAxis();
+
+        sortTrisOnAxis(node, a);
+
+        const float axisLength = getElement(node.bbox.max - node.bbox.min, a);
+        const float stepLength = axisLength / node.nTri;
+
+        for (int i = 1; i < node.nTri; ++i)
+        {
+
+            std::vector<int> leftIds;
+            std::vector<int> rightIds;
+
+            float3 leftMax = make_float3(node.bbox.max.x + stepLength * i, node.bbox.max.y, node.bbox.max.z);
+            float3 rightMin = make_float3(node.bbox.min.x + stepLength * i, node.bbox.min.y, node.bbox.min.z);
+
+            updateElement(leftMax, getElement(node.bbox.min, a) + stepLength*i, a);
+            updateElement(rightMin, getElement(node.bbox.min, a) + stepLength*i, a);
+
+            AABB left(node.bbox.min, leftMax);
+            AABB right(rightMin, node.bbox.max);
+
+            for (int ti = node.startTri; ti < node.startTri + node.nTri; ++ti)
+            {
+                if (trisWithIds[ti].first.isInside(left))
+                    leftIds.push_back(ti);
+
+                if (trisWithIds[ti].first.isInside(right))
+                    rightIds.push_back(ti);
+            }
+
+
+            // Compute SAH costs
+        }
+
+        SplitCandidate splitCandidate;
+        splitCandidate.type = SAH;
+
+        splitCandidate.leftChild.startTri = node.startTri;
+        splitCandidate.leftChild.nTri = minStep;
+        splitCandidate.leftChild.bbox = fBoxes[minStep - 1];
+
+        splitCandidate.rightChild.startTri = node.startTri + minStep;
+        splitCandidate.rightChild.nTri = node.nTri - minStep;
+        splitCandidate.rightChild.bbox = rBoxes[minStep - 1];
+
+        return splitCandidate;
+    }
 }
 
 bool BVHBuilder::splitNode(const Node& node, Node& leftChild, Node& rightChild)
@@ -73,48 +183,11 @@ bool BVHBuilder::splitNode(const Node& node, Node& leftChild, Node& rightChild)
   if (node.nTri <= static_cast<int>(MAX_TRIS_PER_LEAF))
     return false;
 
+  const SplitCandidate sahCandidate = proposeSplit(node, SplitType::SAH);
+  const SplitCandidate spatialCandidate = proposeSplit(node, SplitType::SPATIAL);
+
   const float sa = node.bbox.area();
   const float parentCost = node.nTri * sa;
-
-  float minCost = std::numeric_limits<float>::max();
-  int minStep = -1;
-  const unsigned int a = node.bbox.maxAxis();
-
-  sortTrisOnAxis(node, a);
-
-  const int fStart = node.startTri;
-  const int fEnd = node.startTri + node.nTri - 1;
-
-  AABB fBox = trisWithIds[fStart].first.bbox();
-  std::vector<AABB> fBoxes(node.nTri - 1);
-
-  for (int i = fStart; i < fEnd; ++i)
-  {
-    fBox.add(trisWithIds[i].first);
-    fBoxes[i - node.startTri] = fBox;
-  }
-
-  AABB rBox = trisWithIds[fEnd].first.bbox();
-  std::vector<AABB> rBoxes(node.nTri - 1);
-
-  for (int i = fEnd - 1; i > fStart - 1; --i)
-  {
-    rBox.add(trisWithIds[i].first);
-    rBoxes[i - node.startTri] = rBox;
-  }
-
-#pragma omp parallel for
-  for (int s = 1; s < node.nTri - 1; ++s)
-  {
-    const float currentCost = fBoxes[s - 1].area() * s + rBoxes[s - 1].area() * (node.nTri - s);
-
-#pragma omp critical
-    if (currentCost < minCost)
-    {
-      minCost = currentCost;
-      minStep = s;
-    }
-  }
 
   if (minCost < parentCost)
   {

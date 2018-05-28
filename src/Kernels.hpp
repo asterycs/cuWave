@@ -496,9 +496,9 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 	{
 		// Choose light by uniform sampling
 		const float p = paths.p[pathIdx];
-		const float lightPdf = 1.f / lightTriangles;
-		const float lightF = paths.floats[RandDim::LIGHT];
-		const uint32_t lightIdx = lightF / lightPdf;
+		const float lightProb = 1.f / lightTriangles;
+		const float lightRF = paths.floats[RandDim::LIGHT];
+		const uint32_t lightIdx = lightRF / lightProb;
 
 		float r0 = paths.floats[RandDim::DIFF0];
 		float r1 = paths.floats[RandDim::DIFF1];
@@ -521,14 +521,14 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 
 		if ((shadowResult && shadowResult.t >= shadowRayLength + OFFSET_EPSILON) || !shadowResult)
 		{
-			//const float misWeight = powerHeuristic(p*pointPdf.w, 2*CUDART_PI_F);
+			const float misWeight = powerHeuristic(lightProb*pointPdf.w, 2*CUDART_PI_F);
 			const float cosOmega = __saturatef(dot(normalize(shadowRayDirection), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(shadowRayDirection), lightTriangle.normal()));
 
-			directLightning += /*misWeight **/ 1.f / (shadowRayLength * shadowRayLength * pointPdf.w * p) * lightEmission * cosL * cosOmega;
+			directLightning += misWeight * 1.f / (shadowRayLength * shadowRayLength * lightProb*pointPdf.w * p) * lightEmission * cosL * cosOmega;
 		}
 
-		/*const float33 B = getBasis(hitNormal);
+		const float33 B = getBasis(hitNormal);
 
 		float r2 = scramble(scrambleConstant, paths.floats[RandDim::DIFF2]);
 		float r3 = scramble(scrambleConstant, paths.floats[RandDim::DIFF3]);
@@ -538,18 +538,18 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 		const Ray brdfRay(shadowRayOrigin, brdfDir);
 
 		const RaycastResult brdfResult = rayCast<HitType::CLOSEST>(brdfRay, bvh, triangles, BIGT);
-		bool hitLight = false;
+		bool hitEmitter = false;
 
 		for (int i = 0; i < lightTriangles; ++i) // TODO: ...
 		{
 			if (lightTriangleIds[i] == brdfResult.triangleIdx)
-				hitLight = true;
+			    hitEmitter = true;
 		}
 
-		if (hitLight)
+		if (hitEmitter)
 		{
 			const float3 brdfHitEmission = materials[triangleMaterialIds[brdfResult.triangleIdx]].colorEmission;
-			const float misWeight = powerHeuristic(2*CUDART_PI_F, pointPdf.w*p);
+			const float misWeight = powerHeuristic(2*CUDART_PI_F, lightProb*pointPdf.w);
 
 			const float cosOmega = __saturatef(dot(normalize(brdfDir), hitNormal));
 			const float cosL = __saturatef(dot(-normalize(brdfDir), lightTriangle.normal()));
@@ -557,7 +557,7 @@ __global__ void diffuseKernel(const glm::ivec2 canvasSize, const Queues queues,
 			const float toLightLength = length(brdfDir*brdfResult.t);
 
 			directLightning += misWeight * 1.f / (toLightLength * toLightLength * 2 * CUDART_PI_F * p) * brdfHitEmission * cosL * cosOmega;
-		}*/
+		}
 	}
 
 	const float3 currentTroughput = paths.throughput[pathIdx];

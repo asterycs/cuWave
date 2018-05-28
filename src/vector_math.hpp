@@ -168,6 +168,28 @@ inline __host__ __device__ float3 operator-(const float3 &a)
   return make_float3(-a.x, -a.y, -a.z);
 }
 
+inline __host__ __device__ float getElement(const float3 a, const int idx)
+{
+    if (idx == 0)
+        return a.x;
+    else if (idx == 1)
+        return a.y;
+    else if (idx == 2)
+        return a.z;
+    else
+        return -1.f;
+}
+
+inline __host__ __device__ void updateElement(float3& a, const int idx, const float v)
+{
+    if (idx == 0)
+        a.x = v;
+    else if (idx == 1)
+        a.y = v;
+    else if (idx == 2)
+        a.z = v;
+}
+
 inline __host__ __device__ float3 abs(const float3 &a)
 {
   return make_float3(fabsf(a.x), fabsf(a.y), fabsf(a.z));

@@ -9,6 +9,23 @@
 
 #define MAX_TRIS_PER_LEAF 128
 
+enum SplitType
+{
+    SAH,
+    SPATIAL
+};
+
+struct SplitCandidate
+{
+    enum SplitType type;
+
+    float cost;
+    int splitAxis;
+
+    Node leftChild;
+    Node rightChild;
+};
+
 class BVHBuilder
 {
 public:
@@ -27,6 +44,8 @@ public:
   void reorderTrianglesAndMaterialIds();
   
 private:
+  SplitCandidate proposeSplit(const Node& node, const enum SplitType splitType);
+
   std::vector<Node> bvh;
   std::vector<std::pair<Triangle, uint32_t>> trisWithIds;
   
