@@ -131,6 +131,8 @@ struct Node
   int rightIndex;
 };
 
+std::ostream& operator<<(std::ostream &os, const float3 v);
+std::ostream& operator<<(std::ostream &os, const Node& pn);
 
 struct Ray
 {

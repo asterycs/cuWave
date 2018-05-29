@@ -20,6 +20,7 @@ Have a look at the CMakeLists.txt but in short:
 - libgtk3-dev
 - Cuda toolkit (Developed using 9.2)
 - Recent Cuda capable GPU
+- g++ 7
 
 This program additionally uses:
 - Dear IMGUI for user interface
@@ -31,6 +32,7 @@ This program additionally uses:
 These dependencies are handled by CMake.
 
 ### Build
+gcc 7 must be specified as the host compiler for release mode to work. This is done in CMakeLists.txt, assuming the compiler is accessible with "gcc-7"
 ```
 cd $DOWNLOAD_DIR
 mkdir build

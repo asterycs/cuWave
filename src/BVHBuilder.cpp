@@ -48,19 +48,19 @@ void BVHBuilder::sortTrisOnAxis(const Node& node, const unsigned int axis)
 
   if (axis == 0)
   {
-  __gnu_parallel::sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
-      {
-        return l.first.center().x < r.first.center().x;
-      });
+      __gnu_parallel::stable_sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
+          {
+            return l.first.center().x < r.first.center().x;
+          });
   }else if (axis == 1)
   {
-    __gnu_parallel::sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
+      __gnu_parallel::stable_sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
         {
           return l.first.center().y < r.first.center().y;
         });
   }else
   {
-    __gnu_parallel::sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
+      __gnu_parallel::stable_sort(start, end, [](const std::pair<Triangle, uint32_t>& l, const std::pair<Triangle, uint32_t>& r)
         {
           return l.first.center().z < r.first.center().z;
         });
@@ -98,12 +98,10 @@ SplitCandidate BVHBuilder::proposeSplit(const Node& node, const enum SplitType s
             rBoxes[i - node.startTri] = rBox;
         }
 
-        #pragma omp parallel for
         for (int s = 1; s < node.nTri - 1; ++s)
         {
             const float currentCost = fBoxes[s - 1].area() * s + rBoxes[s - 1].area() * (node.nTri - s);
 
-            #pragma omp critical
             if (currentCost < minCost)
             {
               minCost = currentCost;
@@ -113,6 +111,7 @@ SplitCandidate BVHBuilder::proposeSplit(const Node& node, const enum SplitType s
 
         SplitCandidate splitCandidate;
         splitCandidate.type = SAH;
+        splitCandidate.cost = minCost;
         splitCandidate.splitAxis = a;
 
         splitCandidate.leftChild.startTri = node.startTri;
@@ -126,26 +125,25 @@ SplitCandidate BVHBuilder::proposeSplit(const Node& node, const enum SplitType s
         return splitCandidate;
     }else if (splitType == SPATIAL)
     {
+        AABB bestLeftBox, bestRightBox;
+
         float minCost = std::numeric_limits<float>::max();
         int minStep = -1;
         const unsigned int a = node.bbox.maxAxis();
-
-        sortTrisOnAxis(node, a);
 
         const float axisLength = getElement(node.bbox.max - node.bbox.min, a);
         const float stepLength = axisLength / node.nTri;
 
         for (int i = 1; i < node.nTri; ++i)
         {
-
             std::vector<int> leftIds;
             std::vector<int> rightIds;
 
-            float3 leftMax = make_float3(node.bbox.max.x + stepLength * i, node.bbox.max.y, node.bbox.max.z);
-            float3 rightMin = make_float3(node.bbox.min.x + stepLength * i, node.bbox.min.y, node.bbox.min.z);
+            float3 leftMax = make_float3(node.bbox.max.x, node.bbox.max.y, node.bbox.max.z);
+            float3 rightMin = make_float3(node.bbox.min.x, node.bbox.min.y, node.bbox.min.z);
 
-            updateElement(leftMax, getElement(node.bbox.min, a) + stepLength*i, a);
-            updateElement(rightMin, getElement(node.bbox.min, a) + stepLength*i, a);
+            updateElement(leftMax, a, getElement(node.bbox.min, a) + stepLength*i);
+            updateElement(rightMin, a, getElement(node.bbox.min, a) + stepLength*i);
 
             AABB left(node.bbox.min, leftMax);
             AABB right(rightMin, node.bbox.max);
@@ -159,22 +157,47 @@ SplitCandidate BVHBuilder::proposeSplit(const Node& node, const enum SplitType s
                     rightIds.push_back(ti);
             }
 
+            const float currentCost = left.area() * leftIds.size() + right.area() * rightIds.size();
 
-            // Compute SAH costs
+            if (currentCost < minCost)
+            {
+                minCost = currentCost;
+                bestLeftBox = left;
+                bestRightBox = right;
+            }
+
+        }
+
+        std::vector<int> leftIds;
+        std::vector<int> rightIds;
+
+
+        for (int ti = node.startTri; ti < node.startTri + node.nTri; ++ti)
+        {
+            if (trisWithIds[ti].first.isInside(bestLeftBox))
+                leftIds.push_back(ti);
+
+            if (trisWithIds[ti].first.isInside(bestRightBox))
+                rightIds.push_back(ti);
         }
 
         SplitCandidate splitCandidate;
-        splitCandidate.type = SAH;
+        splitCandidate.type = SPATIAL;
+        splitCandidate.cost = minCost;
+        splitCandidate.splitAxis = a;
 
         splitCandidate.leftChild.startTri = node.startTri;
         splitCandidate.leftChild.nTri = minStep;
-        splitCandidate.leftChild.bbox = fBoxes[minStep - 1];
+        splitCandidate.leftChild.bbox = bestLeftBox;
 
         splitCandidate.rightChild.startTri = node.startTri + minStep;
         splitCandidate.rightChild.nTri = node.nTri - minStep;
-        splitCandidate.rightChild.bbox = rBoxes[minStep - 1];
+        splitCandidate.rightChild.bbox = bestRightBox;
 
         return splitCandidate;
+    }else
+    {
+        return SplitCandidate();
     }
 }
 
@@ -186,24 +209,56 @@ bool BVHBuilder::splitNode(const Node& node, Node& leftChild, Node& rightChild)
   const SplitCandidate sahCandidate = proposeSplit(node, SplitType::SAH);
   const SplitCandidate spatialCandidate = proposeSplit(node, SplitType::SPATIAL);
 
+  (void) spatialCandidate;
   const float sa = node.bbox.area();
   const float parentCost = node.nTri * sa;
 
-  if (minCost < parentCost)
+  if (/*sahCandidate.cost < spatialCandidate.cost && */sahCandidate.cost < parentCost)
   {
-          leftChild.startTri = node.startTri;
-          leftChild.nTri = minStep;
-          leftChild.bbox = fBoxes[minStep - 1];
-
-          rightChild.startTri = node.startTri + minStep;
-          rightChild.nTri = node.nTri - minStep;
-          rightChild.bbox = rBoxes[minStep - 1];
-
-          return true;
-  }else
+      performSplit(sahCandidate, node, leftChild, rightChild);
+      return true;
+  }/*else if (spatialCandidate.cost < sahCandidate.cost && spatialCandidate.cost < parentCost)
   {
-    return false;
-  }
+      std::cout << "Spatial split" << std::endl;
+      performSplit(spatialCandidate, node, leftChild, rightChild);
+
+      return true;
+  }*/else
+      return false;
+}
+
+void BVHBuilder::performSplit(const SplitCandidate split, const Node& node, Node& leftChild, Node& rightChild)
+{
+    if (split.type == SAH)
+    {
+      const unsigned int a = split.splitAxis;
+
+      sortTrisOnAxis(node, a);
+
+      leftChild = split.leftChild;
+      rightChild = split. rightChild;
+
+    }else if (split.type == SPATIAL)
+    {
+        std::vector<std::pair<Triangle, uint32_t>> leftIds;
+        std::vector<std::pair<Triangle, uint32_t>> rightIds;
+
+        for (int ti = node.startTri; ti < node.startTri + node.nTri; ++ti)
+        {
+            if (trisWithIds[ti].first.isInside(split.leftChild.bbox))
+                leftIds.push_back(trisWithIds[ti]);
+
+            if (trisWithIds[ti].first.isInside(split.rightChild.bbox))
+                rightIds.push_back(trisWithIds[ti]);
+        }
+
+        std::cout << "before split: " << trisWithIds.size() << " to remove: " << node.nTri << " " << " to insert: " << leftIds.size() + rightIds.size() << std::endl;
+        trisWithIds.erase(trisWithIds.begin() + node.startTri, trisWithIds.begin() + node.startTri + node.nTri);
+        trisWithIds.insert(trisWithIds.begin() + node.startTri, leftIds.begin(), leftIds.end());
+        trisWithIds.insert(trisWithIds.begin() + node.startTri + leftIds.size(), rightIds.begin(), rightIds.end());
+        std::cout << "after split: " << trisWithIds.size() << std::endl;
+    }else
+        return;
 }
 
 void BVHBuilder::reorderTrianglesAndMaterialIds()

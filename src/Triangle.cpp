@@ -25,7 +25,7 @@ CUDA_FUNCTION bool Triangle::isInside(const AABB bbox) const
     {
         const float3 p = vertices[i].p;
 
-        if (p.x >= bbox.min.x && p.x <= bbox.max.x && p.y >= bbox.min.y && p.y <= bbox.max.y && p.z >= bbox.min.z && p.z <= bbox.min.z)
+        if (p.x > bbox.min.x && p.x < bbox.max.x && p.y > bbox.min.y && p.y < bbox.max.y && p.z > bbox.min.z && p.z < bbox.max.z)
             return true;
     }
 

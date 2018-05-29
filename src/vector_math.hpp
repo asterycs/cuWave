@@ -135,12 +135,12 @@ inline __host__ __device__ float2 normalize(const float2 v)
 
 inline __host__ __device__ float2 floor(const float2 v)
 {
-  return make_float2(floor(v.x), floor(v.y));
+  return make_float2(floorf(v.x), floorf(v.y));
 }
 
 inline __host__ __device__ float2 fabs(const float2 v)
 {
-  return make_float2(fabs(v.x), fabs(v.y));
+  return make_float2(fabsf(v.x), fabsf(v.y));
 }
 
 inline __host__ __device__ float3 make_float3(const float s)
@@ -168,7 +168,7 @@ inline __host__ __device__ float3 operator-(const float3 &a)
   return make_float3(-a.x, -a.y, -a.z);
 }
 
-inline __host__ __device__ float getElement(const float3 a, const int idx)
+inline __host__ __device__ float getElement(const float3 a, const unsigned int idx)
 {
     if (idx == 0)
         return a.x;
@@ -180,7 +180,7 @@ inline __host__ __device__ float getElement(const float3 a, const int idx)
         return -1.f;
 }
 
-inline __host__ __device__ void updateElement(float3& a, const int idx, const float v)
+inline __host__ __device__ void updateElement(float3& a, const unsigned int idx, const float v)
 {
     if (idx == 0)
         a.x = v;
@@ -197,7 +197,7 @@ inline __host__ __device__ float3 abs(const float3 &a)
 
 inline __host__ __device__ float3 fmax(const float3 &a, const float3 &b)
 {
-  return make_float3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z));
+  return make_float3(fmaxf(a.x, b.x), fmaxf(a.y, b.y), fmaxf(a.z, b.z));
 }
 
 inline __host__ __device__ float fmin_compf(const float3 &v)
@@ -212,12 +212,12 @@ inline __host__ __device__ float fmax_compf(const float3 &v)
 
 inline __host__ __device__ float3 fmin(const float3 &a, const float3 &b)
 {
-  return make_float3(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z));
+  return make_float3(fminf(a.x, b.x), fminf(a.y, b.y), fminf(a.z, b.z));
 }
 
 inline __host__ __device__ float fmin(const float3 &v)
 {
-  return min(v.x, min(v.y, v.z));
+  return fminf(v.x, fminf(v.y, v.z));
 }
 
 static __inline__ __host__ __device__ float3 fminf(const float3 a, const float3 b)
@@ -346,12 +346,12 @@ inline __host__ __device__ float3 normalize(const float3 v)
 
 inline __host__ __device__ float3 floor(const float3 v)
 {
-  return make_float3(floor(v.x), floor(v.y), floor(v.z));
+  return make_float3(floorf(v.x), floorf(v.y), floorf(v.z));
 }
 
 inline __host__ __device__ float3 fabs(float3 v)
 {
-  return make_float3(fabs(v.x), fabs(v.y), fabs(v.z));
+  return make_float3(fabsf(v.x), fabsf(v.y), fabsf(v.z));
 }
 
 inline __host__ __device__ float4 make_float4(float s)
@@ -473,13 +473,13 @@ inline __host__ __device__ float4 normalize(const float4 v)
 
 inline __host__ __device__ float4 floor(const float4 v)
 {
-  return make_float4(floor(v.x), floor(v.y), floor(v.z), floor(v.w));
+  return make_float4(floorf(v.x), floorf(v.y), floorf(v.z), floorf(v.w));
 }
 
 
 inline __host__ __device__ float4 fabs(const float4 v)
 {
-  return make_float4(fabs(v.x), fabs(v.y), fabs(v.z), fabs(v.w));
+  return make_float4(fabsf(v.x), fabsf(v.y), fabsf(v.z), fabsf(v.w));
 }
 
 #endif /* VECTOR_MATH_HPP_ */

@@ -103,6 +103,8 @@ CudaModel::CudaModel(std::vector<Triangle> triangles, std::vector<Material> mate
   this->lightTriangles = newLightTriangles;
   this->bvh = bvh;
 
+  std::cout << "newTriangles size: " << newTriangles.size() << " " << " triangles size: " << triangles.size() << std::endl;
+  std::cout << (newTriangles.size() - triangles.size()) / 2 << " triangles are referenced in multiple leaf nodes" << std::endl;
   std::cout << "Done!" << std::endl;
 
 }

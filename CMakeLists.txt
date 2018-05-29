@@ -9,7 +9,7 @@ add_definitions(-DENABLE_CUDA)
 
 # Define some variables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CXX_FLAGS "-Wall -Wextra -Werror -Wno-error=conversion")
+set(CXX_FLAGS "-Wall -Wextra -Werror -Wno-error=unused-parameter -Wconversion -Wno-error=conversion -Wno-error=int-in-bool-context")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/modules/)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS}")
@@ -22,8 +22,7 @@ find_package(CUDA REQUIRED)
 CUDA_SELECT_NVCC_ARCH_FLAGS(CUDA_ARCH_FLAGS Auto)
 list(APPEND CMAKE_CUDA_FLAGS ${CUDA_ARCH_FLAGS})
 string(REPLACE ";" " " CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}") # Phew...
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call -Xptxas -dlcm=ca --ptxas-options=-v --compiler-options=\"${CXX_FLAGS}\"")
-
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -ccbin /usr/bin/gcc-7 -lineinfo --Werror cross-execution-space-call -Xptxas -dlcm=ca --ptxas-options=-v --compiler-options=\"${CXX_FLAGS}\"")
 
 find_package(OpenMP)
 if (OPENMP_FOUND)

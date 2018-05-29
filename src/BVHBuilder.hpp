@@ -7,7 +7,7 @@
 #include "Utils.hpp"
 #include "Triangle.hpp"
 
-#define MAX_TRIS_PER_LEAF 128
+#define MAX_TRIS_PER_LEAF 2
 
 enum SplitType
 {
@@ -20,7 +20,7 @@ struct SplitCandidate
     enum SplitType type;
 
     float cost;
-    int splitAxis;
+    unsigned int splitAxis;
 
     Node leftChild;
     Node rightChild;
@@ -45,6 +45,7 @@ public:
   
 private:
   SplitCandidate proposeSplit(const Node& node, const enum SplitType splitType);
+  void performSplit(const SplitCandidate split, const Node& node, Node& leftChild, Node& rightChild);
 
   std::vector<Node> bvh;
   std::vector<std::pair<Triangle, uint32_t>> trisWithIds;
