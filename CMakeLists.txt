@@ -16,7 +16,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS}")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 include(ExternalProject)
 
-
 # Pre-installed dependencies
 find_package(CUDA REQUIRED)
 CUDA_SELECT_NVCC_ARCH_FLAGS(CUDA_ARCH_FLAGS Auto)
@@ -137,9 +136,29 @@ ExternalProject_Get_Property(glfw INSTALL_DIR)
 set(GLFW_INCLUDE_DIRS ${INSTALL_DIR}/include)
 set(GLFW_LIBRARIES ${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}glfw3${CMAKE_STATIC_LIBRARY_SUFFIX})
 
+# glew
+ExternalProject_Add(glew
+    PREFIX ${CMAKE_BINARY_DIR}/ext/glew
+    GIT_REPOSITORY https://github.com/nigels-com/glew.git
+    GIT_TAG glew-2.1.0 
+    UPDATE_DISCONNECTED 1
+    LOG_DOWNLOAD 1
+    LOG_CONFIGURE 1
+    LOG_BUILD 1
+    LOG_INSTALL 1
+    PATCH_COMMAND cd ${CMAKE_BINARY_DIR}/ext/glew/src/glew/auto/
+ && ${CMAKE_MAKE_PROGRAM}
+    CONFIGURE_COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> <SOURCE_DIR>/build/cmake
+    )
+
+ExternalProject_Get_Property(glew INSTALL_DIR)
+set(GLEW_INCLUDE_DIRS ${INSTALL_DIR}/include)
+set(GLEW_LIBRARIES ${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}GLEW${CMAKE_STATIC_LIBRARY_SUFFIX})
+
 # imgui
 ExternalProject_Add(
     imgui
+    DEPENDS glew
     PREFIX ${CMAKE_BINARY_DIR}/ext/imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG v1.53
@@ -150,6 +169,7 @@ ExternalProject_Add(
     CMAKE_ARGS
         "-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
         "-DGLFW_INCLUDE_DIRS=${GLFW_INCLUDE_DIRS}"
+        "-DGLEW_INCLUDE_DIRS=${GLEW_INCLUDE_DIRS}"
         "-DCMAKE_BUILD_TYPE=Release"
     )
 
@@ -170,25 +190,6 @@ ExternalProject_Add(devil
 ExternalProject_Get_Property(devil INSTALL_DIR)
 set(IL_INCLUDE_DIRS ${INSTALL_DIR}/include)
 set(IL_LIBRARIES ${INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}IL${CMAKE_SHARED_LIBRARY_SUFFIX};${INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}ILU${CMAKE_SHARED_LIBRARY_SUFFIX};${INSTALL_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}ILUT${CMAKE_SHARED_LIBRARY_SUFFIX})
-
-# glew
-ExternalProject_Add(glew
-    PREFIX ${CMAKE_BINARY_DIR}/ext/glew
-    GIT_REPOSITORY https://github.com/nigels-com/glew.git
-    GIT_TAG glew-2.1.0 
-    UPDATE_DISCONNECTED 1
-    LOG_DOWNLOAD 1
-    LOG_CONFIGURE 1
-    LOG_BUILD 1
-    LOG_INSTALL 1
-    PATCH_COMMAND cd ${CMAKE_BINARY_DIR}/ext/glew/src/glew/auto/
- && ${CMAKE_MAKE_PROGRAM}
-    CONFIGURE_COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR> <SOURCE_DIR>/build/cmake
-    )
-
-ExternalProject_Get_Property(glew INSTALL_DIR)
-set(GLEW_INCLUDE_DIRS ${INSTALL_DIR}/include)
-set(GLEW_LIBRARIES ${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}GLEW${CMAKE_STATIC_LIBRARY_SUFFIX})
 
 include_directories(
     SYSTEM

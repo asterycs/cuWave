@@ -28,9 +28,11 @@ add_custom_target(
         COMMENT "Copying benchmark script for target: cuWave" VERBATIM 
         )
 
-add_custom_command(
-        TARGET cuWave
-        COMMAND ${CMAKE_SOURCE_DIR}/patches/error_parsing_fix.sh ${CMAKE_BINARY_DIR}/.project
-        DEPENDS ${CMAKE_BINARY_DIR}/.project
-        COMMENT "Fixing error parsing" VERBATIM
-        )
+if (NOT "${CMAKE_ECLIPSE_VERSION}" STREQUAL "")
+    add_custom_command(
+            TARGET cuWave
+            COMMAND ${CMAKE_SOURCE_DIR}/patches/error_parsing_fix.sh ${CMAKE_BINARY_DIR}/.project
+            DEPENDS ${CMAKE_BINARY_DIR}/.project
+            COMMENT "Fixing error parsing" VERBATIM
+            )
+endif()
