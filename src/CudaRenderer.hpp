@@ -39,8 +39,6 @@ struct Queues
     newPathQueue(nullptr),
     newPathQueueSize(nullptr) {};
 
-  Queues(const Queues& other) = default;
-
   ~Queues()
   {
 
@@ -102,8 +100,6 @@ struct Paths
   float* floats;
   uint32_t* scrambleConstants;
 
-  Paths(const Paths& other) = default;
-
   Paths()
   :
     ray(nullptr),
@@ -156,6 +152,9 @@ class CudaRenderer
 public:
   CudaRenderer();
   ~CudaRenderer();
+
+  CudaRenderer& operator=(CudaRenderer& other) = delete;
+  CudaRenderer(const CudaRenderer& other) = delete;
 
   void pathTraceToCanvas(GLTexture& canvas, const Camera& camera, CudaModel& model);
   void resize(const glm::ivec2 size);

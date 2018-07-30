@@ -97,7 +97,7 @@ struct Material
 
   // TextureIndex?
 
-  Material() : shininess(1.f), refractionIndex(1.f), mode(HIGHLIGHT)
+  Material() : colorAmbient(), colorDiffuse(), colorEmission(), colorSpecular(), colorTransparent(), shininess(1.f), refractionIndex(1.f), mode(HIGHLIGHT)
   {
     colorAmbient 	= make_float3(0.f, 0.f, 0.f);
     colorDiffuse 	= make_float3(0.f, 0.f, 0.f);
@@ -129,6 +129,8 @@ struct Node
   int startTri;
   int nTri; // exclusive
   int rightIndex;
+
+  Node() : bbox(), startTri(-1), nTri(-1), rightIndex(-1) {};
 };
 
 std::ostream& operator<<(std::ostream &os, const float3 v);
@@ -150,12 +152,12 @@ struct RaycastResult {
 
 
   CUDA_HOST_DEVICE  RaycastResult(const unsigned int i,
-    const float t,
-    const float2& uv)
+    const float nt,
+    const float2& nuv)
     :
     triangleIdx(i),
-    t(t),
-    uv(uv)
+    t(nt),
+    uv(nuv)
   {}
 
   CUDA_HOST_DEVICE  RaycastResult()

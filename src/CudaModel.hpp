@@ -46,17 +46,17 @@ public:
   const Node* getDeviceBVH() const;
   const std::string& getFileName() const;
 private:
-  uint32_t addedLights;
+  uint32_t addedLights_;
 
-  thrust::device_vector<Triangle> triangles;
-  thrust::device_vector<Material> materials;
-  thrust::device_vector<uint32_t> triangleMaterialIds;
-  thrust::device_vector<uint32_t> lightTriangles;
+  thrust::device_vector<Triangle> triangles_;
+  thrust::device_vector<Material> materials_;
+  thrust::device_vector<uint32_t> triangleMaterialIds_;
+  thrust::device_vector<uint32_t> lightTriangles_;
 
-  std::string fileName;
+  std::string fileName_;
 
-  AABB boundingBox;
-  thrust::device_vector<Node> bvh;
+  AABB boundingBox_;
+  thrust::device_vector<Node> bvh_;
 };
 
 #endif

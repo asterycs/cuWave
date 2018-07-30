@@ -19,13 +19,23 @@ CUDA_FUNCTION Triangle::Triangle(const Vertex v0, const Vertex v1, const Vertex 
 	vertices[2] = v2;
 }
 
-CUDA_FUNCTION bool Triangle::isInside(const AABB bbox) const
+CUDA_FUNCTION bool Triangle::centroidIsInside(const AABB bbox) const
+{
+	const float3 center = this->center();
+
+	if (center.x > bbox.min.x && center.x < bbox.max.x && center.y > bbox.min.y && center.y < bbox.max.y && center.z > bbox.min.z && center.z < bbox.max.z)
+		return true;
+
+    return false;
+}
+
+CUDA_FUNCTION bool Triangle::touches(const AABB bbox) const
 {
     for (int i = 0; i < 3; ++i)
     {
         const float3 p = vertices[i].p;
 
-        if (p.x > bbox.min.x && p.x < bbox.max.x && p.y > bbox.min.y && p.y < bbox.max.y && p.z > bbox.min.z && p.z < bbox.max.z)
+        if (p.x >= bbox.min.x && p.x <= bbox.max.x && p.y >= bbox.min.y && p.y <= bbox.max.y && p.z >= bbox.min.z && p.z <= bbox.max.z)
             return true;
     }
 

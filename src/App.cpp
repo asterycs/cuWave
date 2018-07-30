@@ -23,6 +23,7 @@ App::App() :
     cudaRenderer(),
 #endif
     cudaModel(),
+    glModel(),
     glcanvas(glm::ivec2(WWIDTH, WHEIGHT)),
     camera(),
     loader()

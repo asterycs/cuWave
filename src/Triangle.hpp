@@ -35,7 +35,8 @@ struct Triangle {
   CUDA_FUNCTION Triangle() = default;
   CUDA_FUNCTION Triangle(const Vertex v0, const Vertex v1, const Vertex v2);
   CUDA_DEVICE_FUNCTION float4 sample(float x, float y) const;
-  CUDA_FUNCTION bool isInside(const AABB bbox) const;
+  CUDA_FUNCTION bool centroidIsInside(const AABB bbox) const;
+  CUDA_FUNCTION bool touches(const AABB bbox) const;
   CUDA_FUNCTION Triangle& operator=(const Triangle& that) = default;
   CUDA_FUNCTION float3 min() const;
   CUDA_FUNCTION float3 max() const;

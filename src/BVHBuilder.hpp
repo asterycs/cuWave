@@ -24,11 +24,22 @@ struct SplitCandidate
 
     Node leftChild;
     Node rightChild;
+
+    SplitCandidate() : type(SAH), cost(0.f), splitAxis(0), leftChild(), rightChild() {};
 };
 
 class BVHBuilder
 {
 public:
+
+  struct TriangleHolder {
+	  Triangle triangle;
+	  uint32_t materialIdx;
+	  uint32_t triangleIdx;
+
+	  TriangleHolder(const Triangle& t, const uint32_t mIdx, const uint32_t tIdx) : triangle(t), materialIdx(mIdx), triangleIdx(tIdx) {};
+  };
+
   BVHBuilder();
   ~BVHBuilder();
   
@@ -41,18 +52,18 @@ public:
   AABB computeBB(const Node node);
   void sortTrisOnAxis(const Node& node, const unsigned int axis);
   bool splitNode(const Node& node, Node& leftChild, Node& rightChild);
-  void reorderTrianglesAndMaterialIds();
   
 private:
-  SplitCandidate proposeSplit(const Node& node, const enum SplitType splitType);
-  void performSplit(const SplitCandidate split, const Node& node, Node& leftChild, Node& rightChild);
+  SplitCandidate proposeSAHSplit(const Node& node);
+  SplitCandidate proposeSpatialSplit(const Node& node);
 
-  std::vector<Node> bvh;
-  std::vector<std::pair<Triangle, uint32_t>> trisWithIds;
+  void performSplit(const SplitCandidate& split, const Node& node, Node& leftChild, Node& rightChild);
+
+  std::vector<Node> bvh_;
+  std::vector<TriangleHolder> triangles_;
   
-  std::vector<uint32_t> lightTriangles;
-  std::vector<uint32_t> triangleMaterialIds;
-  std::vector<Material> bvhBoxMaterials;
+  std::vector<uint32_t> lightTriangleIds_;
+  std::vector<Material> bvhBoxMaterials_;
 };
 
 #endif // BVHBUILDER_HPP

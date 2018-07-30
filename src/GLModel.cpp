@@ -16,7 +16,7 @@ GLModel::~GLModel()
 
 }
 
-GLModel::GLModel(const std::vector<Triangle> triangles, const std::vector<Material> materials, const std::vector<std::vector<uint32_t>> materialIds, const std::string& fileName) : fileName(fileName)
+GLModel::GLModel(const std::vector<Triangle> triangles, const std::vector<Material> materials, const std::vector<std::vector<uint32_t>> materialIds, const std::string& fileName) : fileName_(fileName)
 {
 	if (triangles.size() == 0 || materialIds.size() == 0)
 	{
@@ -24,7 +24,7 @@ GLModel::GLModel(const std::vector<Triangle> triangles, const std::vector<Materi
 		return;
 	}
 
-	this->materials = materials;
+	this->materials_ = materials;
 
 	GL_CHECK(glGenVertexArrays(1, &vaoID));
 	GL_CHECK(glBindVertexArray(vaoID));
@@ -54,12 +54,12 @@ GLModel::GLModel(const std::vector<Triangle> triangles, const std::vector<Materi
 	));
 
 	std::vector<uint32_t> flattenedIds;
-	meshSizes.clear();
+	meshSizes_.clear();
 
 	for (const auto& i : materialIds)
 	{
 	    flattenedIds.insert(flattenedIds.end(), i.begin(), i.end());
-	    meshSizes.push_back(i.size());
+	    meshSizes_.push_back(i.size());
 	}
 
     GL_CHECK(glGenBuffers(1, &indexID));
@@ -76,17 +76,17 @@ GLuint GLModel::getIndexID() const
 
 const std::vector<uint32_t>& GLModel::getMeshSizes() const
 {
-  return meshSizes;
+  return meshSizes_;
 }
 
 const std::vector<Material>& GLModel::getMaterials() const
 {
-  return materials;
+  return materials_;
 }
 
 const std::string GLModel::getFileName() const
 {
-  return fileName;
+  return fileName_;
 }
 
 GLuint GLModel::getVaoID() const

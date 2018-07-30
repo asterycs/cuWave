@@ -9,7 +9,8 @@ add_definitions(-DENABLE_CUDA)
 
 # Define some variables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -Wall -Wextra -Werror -Wno-error=unused-parameter -Wconversion -Wno-error=conversion")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-error=unused-parameter -Wconversion -Wno-error=conversion -fasynchronous-unwind-tables -fstack-protector-all -Werror=format-security -Werror=implicit-function-declaration -Wdisabled-optimization -Wformat -Wcast-align -Wformat-security -Wmissing-braces -Wparentheses  -Wpointer-arith -Wredundant-decls -Wreturn-type -Wsign-compare -Wuninitialized -Wunreachable-code -Wunused -Wunused-label -Wunused-value  -Wunused-variable")
+add_definitions(-D_GLIBCXX_DEBUG)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/modules/)
 set(CMAKE_CXX_STANDARD 17)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)

@@ -84,8 +84,8 @@ GLContext::GLContext() :
   );
 
   glfwSetWindowSizeCallback(window,
-      [](GLFWwindow *, int width, int height) {
-          App::getInstance().resizeCallbackEvent(width, height);
+      [](GLFWwindow *, int nWidth, int nHeight) {
+          App::getInstance().resizeCallbackEvent(nWidth, nHeight);
       }
   );
 

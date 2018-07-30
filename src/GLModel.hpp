@@ -22,9 +22,9 @@ public:
   const std::string getFileName() const;
 
 private:
-  std::vector<uint32_t> meshSizes;
-  std::vector<Material> materials;
-  std::string fileName;
+  std::vector<uint32_t> meshSizes_;
+  std::vector<Material> materials_;
+  std::string fileName_;
 
   GLuint vaoID;
   GLuint vboID;
