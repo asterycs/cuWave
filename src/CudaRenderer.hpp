@@ -10,7 +10,7 @@
 #include "Camera.hpp"
 #include "CudaModel.hpp"
 
-#define PREGEN_RANDS 20
+#define RANDOM_DIMENSIONS 32
 
 __host__ __device__ int getRandomSizeMult(const glm::ivec2 size);
 
@@ -129,7 +129,7 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &p, size.x*size.y*sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &floats, 32*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &floats, RANDOM_DIMENSIONS*sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**) &scrambleConstants, size.x*size.y*sizeof(uint32_t)));
   }
 

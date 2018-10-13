@@ -39,8 +39,15 @@ void CudaRenderer::resize(const glm::ivec2 size)
 
 	uint32_t* hostScrambleConstants;
 
+	// Seems there are only 20 000 scramble constants available. We'll reuse them.
 	CURAND_CHECK(curandGetScrambleConstants32(&hostScrambleConstants));
-	CUDA_CHECK(cudaMemcpy(paths.scrambleConstants, hostScrambleConstants, size.x * size.y * sizeof(uint32_t), cudaMemcpyHostToDevice));
+
+	const int jump = 20000;
+	for (int startIdx = 0; startIdx < size.x*size.y; startIdx += jump)
+	{
+		const int toCopy = std::min(jump, size.x*size.y-startIdx);
+		CUDA_CHECK(cudaMemcpy(paths.scrambleConstants + startIdx, hostScrambleConstants, toCopy*sizeof(uint32_t), cudaMemcpyHostToDevice));
+	}
 
 	reset();
 }
@@ -60,7 +67,7 @@ CudaRenderer::CudaRenderer() :
 
 
 	CURAND_CHECK(curandCreateGenerator(&randGen, CURAND_RNG_QUASI_SOBOL32));
-	CURAND_CHECK(curandSetQuasiRandomGeneratorDimensions(randGen, 32));
+	CURAND_CHECK(curandSetQuasiRandomGeneratorDimensions(randGen, RANDOM_DIMENSIONS));
 
 	CUDA_CHECK(cudaSetDevice(cudaDevices[0]));
 
@@ -69,6 +76,7 @@ CudaRenderer::CudaRenderer() :
 
 CudaRenderer::~CudaRenderer()
 {
+	CURAND_CHECK(curandDestroyGenerator(randGen));
 	queues.release();
 	paths.release();
 }
@@ -94,7 +102,7 @@ void CudaRenderer::pathTraceToCanvas(GLTexture& canvas, const Camera& camera,
 		reset();
 	}
 
-    CURAND_CHECK(curandGenerateUniform(randGen, paths.floats, 32));
+    CURAND_CHECK(curandGenerateUniform(randGen, paths.floats, RANDOM_DIMENSIONS));
 
 	castRays<<<grid, block>>>(paths, canvasSize, model.getDeviceTriangles(),
 			model.getDeviceBVH(), model.getDeviceMaterials(),

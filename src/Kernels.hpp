@@ -66,7 +66,7 @@ __device__ int atomicAggInc(uint32_t *ctr) {
 
 __device__ inline float scramble(const uint32_t scrambleConstant, const float f)
 {
-	const uint32_t i = static_cast<uint32_t>(f * 0x100000000) ^ scrambleConstant;
+	const uint32_t i = static_cast<uint32_t>(f * 0xFFFFFFFF) ^ scrambleConstant;
 
 	const float r = i * 2.3283064365386963e-10f;
 
