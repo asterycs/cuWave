@@ -1,6 +1,8 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
+#include <glm/fwd.hpp>
+
 #ifdef __CUDACC__
   #define CUDA_HOST_DEVICE __host__ __device__
   #define CUDA_HOST __host__
@@ -108,6 +110,15 @@ struct Material
 
 };
 
+// Intermediate representation
+struct AbstractModel
+{
+  std::vector<Triangle> triangles;
+  std::vector<uint32_t> triangleMaterialIds;
+  std::vector<uint32_t> lightTriangleIds;
+  std::vector<Material> materials;
+  std::vector<std::vector<uint32_t>> materialIds;
+};
 
 struct AABB
 {

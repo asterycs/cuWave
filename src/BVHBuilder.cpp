@@ -230,7 +230,6 @@ void BVHBuilder::performSplit(const SplitCandidate& split, const Node& node, Nod
     {
       leftChild = split.leftChild;
       rightChild = split.rightChild;
-
     }else if (split.type == SPATIAL)
     {
         std::vector<TriangleHolder> leftTris;
@@ -286,13 +285,14 @@ void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector
   finishedNodes.reserve(nodecountAppr);
   touchCount.reserve(nodecountAppr);
 
-  int leafCount = 0;
-  int nodeCount = 0;
+  //int leafCount = 0;
+  //int nodeCount = 0;
 
   stack.push(root);
   parentIndices.push(-1);
 
-  while (!stack.empty()) {
+  	  	  finishedNodes.push_back(root);
+  /*while (!stack.empty()) {
 
     Node node = stack.top();
     stack.pop();
@@ -332,7 +332,7 @@ void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector
       }
     }
 
-  }
+  }*/
 
   this->bvh_ = finishedNodes;
 }

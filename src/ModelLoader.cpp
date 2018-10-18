@@ -20,8 +20,14 @@ std::ostream& operator<<(std::ostream&os, const float3& v)
 	return os;
 }
 
-bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triangles, std::vector<uint32_t>& triangleMaterialIds, std::vector<uint32_t>& lightTriangles, std::vector<Material>& materials, std::vector<std::vector<uint32_t>>& materialIds) const
+bool ModelLoader::loadOBJ(const std::string& path, AbstractModel& abstractModel) const
 {
+  abstractModel.lightTriangleIds.clear();
+  abstractModel.materialIds.clear();
+  abstractModel.materials.clear();
+  abstractModel.triangleMaterialIds.clear();
+  abstractModel.triangles.clear();
+
   tinyobj::attrib_t attrib;
   std::vector<tinyobj::shape_t> shapes;
   std::vector<tinyobj::material_t> tinymaterials;
@@ -36,15 +42,21 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
     std::cout << err;
 
   if (!ret)
-  {
-    std::cerr << "Couldn't load model" << std::endl;
-
     return false;
-  }
 
   const float m = std::numeric_limits<float>::max();
+
+  // For bbox
   float3 maxv = make_float3(-m,-m,-m);
   float3 minv = make_float3(m,m,m);
+
+  Material defaultMaterial;
+  defaultMaterial.colorAmbient = make_float3(0.f, 1.f, 0.f);
+  defaultMaterial.colorDiffuse = make_float3(0.f, 0.f, 0.f);
+  defaultMaterial.colorSpecular = make_float3(0.f, 0.f, 0.f);
+  defaultMaterial.colorEmission = make_float3(0.f, 0.f, 0.f);
+  defaultMaterial.colorTransparent = make_float3(0.f, 0.f, 0.f);
+  abstractModel.materials.push_back(defaultMaterial);
 
   for (auto& tm : tinymaterials)
   {
@@ -56,22 +68,22 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
     material.colorSpecular = make_float3(tm.specular[0], tm.specular[1], tm.specular[2]);
     material.colorTransparent = make_float3(1-sqrtf(tm.transmittance[0]), 1-sqrtf(tm.transmittance[1]), 1-sqrtf(tm.transmittance[2]));
 
-	material.refractionIndex = tm.ior;
+	  material.refractionIndex = tm.ior;
 
     switch (tm.illum)
     {
-		default:
-			std::cerr << "Unknown shading mode for material: " << tm.illum << std::endl;
-			material.mode = Material::HIGHLIGHT;
-			break;
-		case 1:
-		case 2:
-		case 3:
-		case 4:
-		case 5:
-		case 6:
-		case 7:
-			material.mode = static_cast<Material::ShadingMode>(tm.illum);
+      default:
+        std::cerr << "Unknown shading mode for material: " << tm.illum << std::endl;
+        material.mode = Material::HIGHLIGHT;
+        break;
+      case 1:
+      case 2:
+      case 3:
+      case 4:
+      case 5:
+      case 6:
+      case 7:
+        material.mode = static_cast<Material::ShadingMode>(tm.illum);
     }
 /*
     std::cout << "ambient: " << material.colorAmbient << std::endl;
@@ -82,21 +94,8 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
     std::cout << "refractionIndex: " << material.refractionIndex << std::endl;
     std::cout << "mode: " << material.mode << std::endl << std::endl;
 */
-    materials.push_back(material);
+    abstractModel.materials.push_back(material);
   }
-
-	Material lightMaterial;
-	lightMaterial.colorEmission = make_float3(600.f, 600.f, 600.f);
-	//lightMaterial.colorAmbient = make_float3(1.f, 1.f, 1.f);
-	materials.push_back(lightMaterial);
-
-	Material defaultMaterial;
-	defaultMaterial.colorAmbient = make_float3(0.f, 1.f, 0.f);
-	defaultMaterial.colorDiffuse = make_float3(0.f, 0.f, 0.f);
-	defaultMaterial.colorSpecular = make_float3(0.f, 0.f, 0.f);
-	defaultMaterial.colorEmission = make_float3(0.f, 0.f, 0.f);
-	defaultMaterial.colorTransparent = make_float3(0.f, 0.f, 0.f);
-	materials.push_back(defaultMaterial);
 
   for (size_t s = 0; s < shapes.size(); s++)
   {
@@ -153,31 +152,34 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
         triangle.vertices[2].n = n;
       }
 
-      meshIds.push_back(static_cast<uint32_t>(3*triangles.size()));
-      meshIds.push_back(static_cast<uint32_t>(3*triangles.size()+1));
-      meshIds.push_back(static_cast<uint32_t>(3*triangles.size()+2));
+      meshIds.push_back(static_cast<uint32_t>(3*abstractModel.triangles.size()));
+      meshIds.push_back(static_cast<uint32_t>(3*abstractModel.triangles.size()+1));
+      meshIds.push_back(static_cast<uint32_t>(3*abstractModel.triangles.size()+2));
 
-      triangles.push_back(triangle);
+      abstractModel.triangles.push_back(triangle);
 
-      int32_t materialId = shapes[s].mesh.material_ids[f];
+      // +1 since the default material is at index 0
+      int32_t materialId = shapes[s].mesh.material_ids[f] + 1;
 
-      if (materialId < 0 || materialId >= static_cast<int32_t>(materials.size()))
-        materialId = materials.size() - 1;
+      if (materialId < 0 || materialId >= static_cast<int32_t>(abstractModel.materials.size()))
+        materialId = 0;
 
-      const Material& material = materials[materialId];
-      triangleMaterialIds.push_back(materialId);
+      const Material& material = abstractModel.materials[materialId];
+      abstractModel.triangleMaterialIds.push_back(materialId);
 
+      // Add reference to lightTriangles if emits light
       if (material.colorEmission.x != 0.f || material.colorEmission.y != 0.f || material.colorEmission.z != 0.f)
-        lightTriangles.push_back(triangles.size() - 1);
+        abstractModel.lightTriangleIds.push_back(abstractModel.triangles.size() - 1);
     }
 
-    materialIds.push_back(meshIds);
+    abstractModel.materialIds.push_back(meshIds);
   }
 
+  // Here we move all vertices so that the start a corner of the model is in (0,0,0)
   const float3 bbDiagonal = maxv - minv;
   const float diagonalMaxComponent = fmax_compf(bbDiagonal);
 
-  for (auto& t : triangles)
+  for (auto& t : abstractModel.triangles)
   {
 	  for (auto& v : t.vertices)
 	  {
@@ -187,39 +189,5 @@ bool ModelLoader::loadOBJ(const std::string& path, std::vector<Triangle>& triang
   }
 
   return true;
-}
-
-CudaModel ModelLoader::loadCudaModel(const std::string& path) const
-{
-	std::vector<Triangle> triangles;
-	std::vector<uint32_t> triangleMaterialIds;
-	std::vector<uint32_t> lightTriangles;
-	std::vector<Material> materials;
-	std::vector<std::vector<uint32_t>> materialIds;
-
-	loadOBJ(path, triangles, triangleMaterialIds, lightTriangles, materials, materialIds);
-
-	std::cout << "Creating CUDA model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
-
-	CudaModel model(triangles, materials, triangleMaterialIds, lightTriangles, path);
-
-	return model;
-}
-
-GLModel ModelLoader::loadGLModel(const std::string& path) const
-{
-	std::vector<Triangle> triangles;
-	std::vector<uint32_t> triangleMaterialIds;
-	std::vector<uint32_t> lightTriangles;
-	std::vector<Material> materials;
-	std::vector<std::vector<uint32_t>> materialIds;
-
-	loadOBJ(path, triangles, triangleMaterialIds, lightTriangles, materials, materialIds);
-
-	std::cout << "Creating GL model with " << triangles.size() << " triangles, " << materials.size() << " materials and " << lightTriangles.size() << " lights" << std::endl;
-
-	GLModel model(triangles, materials, materialIds, path);
-
-	return model;
 }
 
