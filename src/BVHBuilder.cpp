@@ -202,22 +202,15 @@ bool BVHBuilder::splitNode(const Node& node, Node& leftChild, Node& rightChild)
     return false;
 
   const SplitCandidate sahCandidate = proposeSAHSplit(node);
-  //const SplitCandidate spatialCandidate = proposeSpatialSplit(node);
-
 
   const float sa = node.bbox.area();
   const float parentCost = node.nTri * sa;
 
-  if (/*sahCandidate.cost < spatialCandidate.cost && */sahCandidate.cost < parentCost-1e-5f)
+  if (sahCandidate.cost < parentCost-1e-5f)
   {
       performSplit(sahCandidate, node, leftChild, rightChild);
       return true;
-  }/*else if (spatialCandidate.cost < sahCandidate.cost && spatialCandidate.cost < parentCost-1e-5f)
-  {
-      performSplit(spatialCandidate, node, leftChild, rightChild);
-
-      return true;
-  }*/else
+  }else
       return false;
 }
 
