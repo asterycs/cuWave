@@ -10,7 +10,7 @@
 #include "Camera.hpp"
 #include "CudaModel.hpp"
 
-#define PREGEN_RANDS 20
+#define RANDOM_DIMENSIONS 32
 
 __host__ __device__ int getRandomSizeMult(const glm::ivec2 size);
 
@@ -38,8 +38,6 @@ struct Queues
     transparentQueueSize(nullptr),
     newPathQueue(nullptr),
     newPathQueueSize(nullptr) {};
-
-  Queues(const Queues& other) = default;
 
   ~Queues()
   {
@@ -102,8 +100,6 @@ struct Paths
   float* floats;
   uint32_t* scrambleConstants;
 
-  Paths(const Paths& other) = default;
-
   Paths()
   :
     ray(nullptr),
@@ -133,7 +129,7 @@ struct Paths
     CUDA_CHECK(cudaMalloc((void**) &p, size.x*size.y*sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**) &pathNr, size.x*size.y*sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc((void**) &rayNr, size.x*size.y*sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc((void**) &floats, 32*sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**) &floats, RANDOM_DIMENSIONS*sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**) &scrambleConstants, size.x*size.y*sizeof(uint32_t)));
   }
 
@@ -156,6 +152,9 @@ class CudaRenderer
 public:
   CudaRenderer();
   ~CudaRenderer();
+
+  CudaRenderer& operator=(CudaRenderer& other) = delete;
+  CudaRenderer(const CudaRenderer& other) = delete;
 
   void pathTraceToCanvas(GLTexture& canvas, const Camera& camera, CudaModel& model);
   void resize(const glm::ivec2 size);

@@ -11,7 +11,7 @@ class GLModel
 {
 public:
   GLModel();
-  GLModel(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<std::vector<uint32_t>> materialIds, const std::string& fileName);
+  GLModel(const AbstractModel& abstractModel);
   ~GLModel();
 
   GLuint getVaoID() const;
@@ -19,12 +19,10 @@ public:
 
   const std::vector<uint32_t>& getMeshSizes() const;
   const std::vector<Material>& getMaterials() const;
-  const std::string getFileName() const;
 
 private:
-  std::vector<uint32_t> meshSizes;
-  std::vector<Material> materials;
-  std::string fileName;
+  std::vector<uint32_t> meshSizes_;
+  std::vector<Material> materials_;
 
   GLuint vaoID;
   GLuint vboID;

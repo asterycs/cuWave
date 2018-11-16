@@ -23,6 +23,7 @@ App::App() :
     cudaRenderer(),
 #endif
     cudaModel(),
+    glModel(),
     glcanvas(glm::ivec2(WWIDTH, WHEIGHT)),
     camera(),
     loader()
@@ -247,8 +248,7 @@ void App::createSceneFile(const std::string& filename)
     return;
   }
 
-  std::string modelName = cudaModel.getFileName();
-  sceneFile << modelName << std::endl;
+  sceneFile << modelPath << std::endl;
   sceneFile << camera << std::endl;
   sceneFile << cudaModel.getNAddedLights() << std::endl;
 
@@ -267,16 +267,29 @@ void App::createSceneFile(const std::string& filename)
   std::cout << "Wrote scene file " << filename << std::endl;
 }
 
-void App::loadModel(const std::string& modelFile)
+void App::loadModel(const std::string& path)
 {
-  cudaModel = loader.loadCudaModel(modelFile);
-  cudaRenderer.reset();
+  AbstractModel abstractModel;
 
-  glModel = loader.loadGLModel(modelFile);
+  if (!loader.loadOBJ(path, abstractModel))
+  {
+    std::cerr << "Couldn't load model" << std::endl;
+  }
+
+  modelPath = path;
+
+  cudaModel = CudaModel(abstractModel);
+  cudaRenderer.reset();
+  glModel = GLModel(abstractModel);
 }
 
 void App::loadSceneFile(const std::string& filename)
 {
+  if (filename.find(".scene") == std::string::npos) {
+    std::cout << "Invalid .scene file selected" << std::endl;
+    return;
+  }
+
   std::ifstream sceneFile;
   sceneFile.open(filename);
 
@@ -376,7 +389,7 @@ void App::writeTextureToFile(const GLTexture& texture, const std::string& fileNa
   std::vector<unsigned char> tmp(size.x*size.y*3, 255);
 
   for (int i = 0; i < size.x*size.y*3; ++i)
-    tmp[i] *= *(static_cast<float*>(mem) + i);
+    tmp[i] *= static_cast<unsigned char>(*(static_cast<float*>(mem) + i));
 
   IL_CHECK(ilTexImage(size.x, size.y, 1, 3, IL_RGB, IL_UNSIGNED_BYTE, tmp.data()));
 

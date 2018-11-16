@@ -193,3 +193,13 @@ CUDA_HOST_DEVICE void AABB::add(const float3 v)
   min = fmin(min, v);
   max = fmax(max, v);
 }
+
+std::ostream& operator<<(std::ostream &os, const float3 v)
+{
+    return os << v.x << " " << v.y << " " << v.z;
+}
+
+std::ostream& operator<<(std::ostream &os, const Node& n)
+{
+    return os << "startTri: " << n.startTri << std::endl << " nTri: " << n.nTri << std::endl << " rightIndex: " << n.rightIndex << std::endl << " bbox: " << n.bbox.min << " " << n.bbox.max;
+}

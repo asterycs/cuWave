@@ -4,30 +4,35 @@ cmake_minimum_required(VERSION 3.10)
 set(ENABLE_CUDA ON CACHE BOOL "Enable Cuda features") # Enable by default
 
 # Set project language
-project(cuWave LANGUAGES CXX CUDA)
+project(cuWave LANGUAGES C CXX CUDA)
 add_definitions(-DENABLE_CUDA)
+
+# This is for figuring out whether to ues lib64 or lib
+include(GNUInstallDirs)
 
 # Define some variables
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CXX_FLAGS "-Wall -Wextra -Werror -Wno-error=conversion")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-error=int-in-bool-context -Wno-error=unused-parameter -Wconversion -Wno-error=conversion -fasynchronous-unwind-tables -fstack-protector-all -Werror=format-security -Werror=implicit-function-declaration -Wdisabled-optimization -Wformat -Wcast-align -Wformat-security -Wmissing-braces -Wparentheses  -Wpointer-arith -Wredundant-decls -Wreturn-type -Wsign-compare -Wuninitialized -Wunreachable-code -Wunused -Wunused-label -Wunused-value  -Wunused-variable")
+add_definitions(-D_GLIBCXX_DEBUG)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/modules/)
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS}")
+set(CMAKE_CXX_STANDARD 17)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 include(ExternalProject)
+
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}") # CXX_FLAGS not detected properly
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
 
 # Pre-installed dependencies
 find_package(CUDA REQUIRED)
 CUDA_SELECT_NVCC_ARCH_FLAGS(CUDA_ARCH_FLAGS Auto)
 list(APPEND CMAKE_CUDA_FLAGS ${CUDA_ARCH_FLAGS})
 string(REPLACE ";" " " CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}") # Phew...
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call -Xptxas -dlcm=ca --ptxas-options=-v --compiler-options=\"${CXX_FLAGS}\"")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo --Werror cross-execution-space-call -Xptxas -dlcm=ca --ptxas-options=-v --compiler-options=\"${CMAKE_CXX_FLAGS}\"")
 
-
-find_package(OpenMP)
-if (OPENMP_FOUND)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
 find_package(X11 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(Threads REQUIRED)
@@ -58,7 +63,7 @@ ExternalProject_Add(tinyobjloader
 
 ExternalProject_Get_Property(tinyobjloader INSTALL_DIR)
 set(TINYOBJLOADER_INCLUDE_DIRS ${INSTALL_DIR}/include)
-set(TINYOBJLOADER_LIBRARIES "${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}tinyobjloader${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(TINYOBJLOADER_LIBRARIES "${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}tinyobjloader${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 # Native file dialog
 ExternalProject_Add(nativefiledialog
@@ -80,7 +85,7 @@ ExternalProject_Add(
     glm
     PREFIX ${CMAKE_BINARY_DIR}/ext/glm
     GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG 0.9.9-a2
+    GIT_TAG 0.9.9.2
     GIT_PROGRESS 1
     UPDATE_DISCONNECTED 1
     LOG_DOWNLOAD 1
@@ -153,7 +158,7 @@ ExternalProject_Add(glew
 
 ExternalProject_Get_Property(glew INSTALL_DIR)
 set(GLEW_INCLUDE_DIRS ${INSTALL_DIR}/include)
-set(GLEW_LIBRARIES ${INSTALL_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}GLEW${CMAKE_STATIC_LIBRARY_SUFFIX})
+set(GLEW_LIBRARIES ${INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}GLEW${CMAKE_STATIC_LIBRARY_SUFFIX})
 
 # imgui
 ExternalProject_Add(

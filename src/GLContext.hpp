@@ -24,6 +24,9 @@ public:
   GLContext();
   ~GLContext();
 
+  GLContext& operator=(GLContext& other) = default;
+  GLContext(GLContext& other) = default;
+
   void draw(const GLTexture& canvas);
   void draw(const GLModel& model, const Camera& camera);
 

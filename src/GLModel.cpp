@@ -16,22 +16,22 @@ GLModel::~GLModel()
 
 }
 
-GLModel::GLModel(const std::vector<Triangle> triangles, const std::vector<Material> materials, const std::vector<std::vector<uint32_t>> materialIds, const std::string& fileName) : fileName(fileName)
+GLModel::GLModel(const AbstractModel& abstractModel)
 {
-	if (triangles.size() == 0 || materialIds.size() == 0)
+	if (abstractModel.triangles.size() == 0 || abstractModel.materialIds.size() == 0)
 	{
 		std::cerr << "Model is empty!" << std::endl;
 		return;
 	}
 
-	this->materials = materials;
+	this->materials_ = abstractModel.materials;
 
 	GL_CHECK(glGenVertexArrays(1, &vaoID));
 	GL_CHECK(glBindVertexArray(vaoID));
 
 	GL_CHECK(glGenBuffers(1, &vboID));
 	GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vboID));
-	GL_CHECK(glBufferData(GL_ARRAY_BUFFER, triangles.size() * 3 * sizeof(Vertex), triangles.data(), GL_STATIC_DRAW));
+	GL_CHECK(glBufferData(GL_ARRAY_BUFFER, abstractModel.triangles.size() * 3 * sizeof(Vertex), abstractModel.triangles.data(), GL_STATIC_DRAW));
 
 	GL_CHECK(glEnableVertexAttribArray(0));
 	GL_CHECK(glVertexAttribPointer(
@@ -54,12 +54,12 @@ GLModel::GLModel(const std::vector<Triangle> triangles, const std::vector<Materi
 	));
 
 	std::vector<uint32_t> flattenedIds;
-	meshSizes.clear();
+	meshSizes_.clear();
 
-	for (const auto& i : materialIds)
+	for (const auto& i : abstractModel.materialIds)
 	{
 	    flattenedIds.insert(flattenedIds.end(), i.begin(), i.end());
-	    meshSizes.push_back(i.size());
+	    meshSizes_.push_back(i.size());
 	}
 
     GL_CHECK(glGenBuffers(1, &indexID));
@@ -76,17 +76,12 @@ GLuint GLModel::getIndexID() const
 
 const std::vector<uint32_t>& GLModel::getMeshSizes() const
 {
-  return meshSizes;
+  return meshSizes_;
 }
 
 const std::vector<Material>& GLModel::getMaterials() const
 {
-  return materials;
-}
-
-const std::string GLModel::getFileName() const
-{
-  return fileName;
+  return materials_;
 }
 
 GLuint GLModel::getVaoID() const

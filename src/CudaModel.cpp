@@ -6,7 +6,8 @@
 #include <cmath>
 
 
-CudaModel::CudaModel() : addedLights(0)
+CudaModel::CudaModel() : addedLights_(0), triangles_(), materials_(), triangleMaterialIds_(), lightTriangles_(), fileName_(),
+boundingBox_(), bvh_()
 {
   
 }
@@ -18,17 +19,19 @@ CudaModel::~CudaModel()
 
 void CudaModel::clearLights()
 {
-	for (std::size_t i = 0; i < addedLights; ++i)
+	for (std::size_t i = 0; i < addedLights_; ++i)
 	{
-		triangleMaterialIds.pop_back();
-		triangleMaterialIds.pop_back();
+		triangleMaterialIds_.pop_back();
+		triangleMaterialIds_.pop_back();
 
-		triangles.pop_back();
-		triangles.pop_back();
+		triangles_.pop_back();
+		triangles_.pop_back();
+
+	  lightTriangles_.pop_back();
+    lightTriangles_.pop_back();
 	}
 
-	addedLights = 0;
-
+	addedLights_ = 0;
 	rebuild();
 }
 
@@ -59,15 +62,22 @@ void CudaModel::addLight(const glm::mat4 tform)
 	}
 
 	for (unsigned int i = 0; i < 2; ++i)
-		triangles.push_back(Triangle(vertices[i*3], vertices[i*3+1], vertices[i*3+2]));
+		triangles_.push_back(Triangle(vertices[i*3], vertices[i*3+1], vertices[i*3+2]));
 
-	triangleMaterialIds.push_back(materials.size()-2);
-	triangleMaterialIds.push_back(materials.size()-2);
+	Material lightMaterial;
+	lightMaterial.colorEmission = make_float3(600.f, 600.f, 600.f);
+	lightMaterial.colorDiffuse = make_float3(1.f, 1.f, 1.f);
 
-	lightTriangles.push_back(triangles.size()-1);
-	lightTriangles.push_back(triangles.size()-1);
+	materials_.push_back(lightMaterial);
 
-	addedLights += 2;
+	const uint32_t lightMaterialId = materials_.size()-1;
+	triangleMaterialIds_.push_back(lightMaterialId);
+	triangleMaterialIds_.push_back(lightMaterialId);
+
+	lightTriangles_.push_back(triangles_.size()-1);
+	lightTriangles_.push_back(triangles_.size()-1);
+
+	addedLights_ += 1;
 
 	rebuild();
 }
@@ -76,115 +86,109 @@ void CudaModel::addLights(const std::vector<Triangle>& lightTriangles, const std
 {
 	for (std::size_t i = 0; i < lightTriangles.size(); ++i)
 	{
-		triangles.push_back(lightTriangles[i]);
-		triangleMaterialIds.push_back(materialIds[i]);
+		triangles_.push_back(lightTriangles[i]);
+		triangleMaterialIds_.push_back(materialIds[i]);
 	}
 
-	addedLights += lightTriangles.size();
+	addedLights_ += lightTriangles.size();
 
 	rebuild();
 }
 
 
-CudaModel::CudaModel(std::vector<Triangle> triangles, std::vector<Material> materials, std::vector<uint32_t> triMatIds, std::vector<uint32_t> lightTriangles, const std::string& fileName) : addedLights(0), fileName(fileName)
+CudaModel::CudaModel(const AbstractModel& abstractModel) : addedLights_(0)
 {
   std::cout << "Building BVH..." << std::endl;
   BVHBuilder bvhbuilder;
-  bvhbuilder.build(triangles, triMatIds, lightTriangles);
+  bvhbuilder.build(abstractModel.triangles, abstractModel.triangleMaterialIds, abstractModel.lightTriangleIds);
   
   std::vector<Node> bvh = bvhbuilder.getBVH();
   std::vector<Triangle> newTriangles = bvhbuilder.getTriangles();
   std::vector<uint32_t> newTriMatIds = bvhbuilder.getTriangleMaterialIds();
   std::vector<uint32_t> newLightTriangles = bvhbuilder.getLightTriangleIds();
 
-  this->triangles = newTriangles;
-  this->materials = materials;
-  this->triangleMaterialIds = newTriMatIds;
-  this->lightTriangles = newLightTriangles;
-  this->bvh = bvh;
-
   std::cout << "Done!" << std::endl;
 
+  this->triangles_ = newTriangles;
+  this->materials_ = abstractModel.materials;
+  this->triangleMaterialIds_ = newTriMatIds;
+  this->lightTriangles_ = newLightTriangles;
+  this->bvh_ = bvh;
 }
 
 void CudaModel::rebuild()
 {
   std::cout << "Building BVH..." << std::endl;
-  std::vector<Triangle> newTris(triangles.begin(), triangles.end());
-  std::vector<uint32_t > newTriMatIds(triangleMaterialIds.begin(), triangleMaterialIds.end());
-  std::vector<uint32_t > newLightTriangles(lightTriangles.begin(), lightTriangles.end());
+  std::vector<Triangle> newTris(triangles_.begin(), triangles_.end());
+  std::vector<uint32_t > newTriMatIds(triangleMaterialIds_.begin(), triangleMaterialIds_.end());
+  std::vector<uint32_t > newLightTriangles(lightTriangles_.begin(), lightTriangles_.end());
 
   BVHBuilder bvhbuilder;
   bvhbuilder.build(newTris, newTriMatIds, newLightTriangles);
 
-  this->triangles = bvhbuilder.getTriangles();
-  this->triangleMaterialIds = bvhbuilder.getTriangleMaterialIds();
-  this->lightTriangles = bvhbuilder.getLightTriangleIds();
-  this->bvh = bvhbuilder.getBVH();
+  this->triangles_ = bvhbuilder.getTriangles();
+  this->triangleMaterialIds_ = bvhbuilder.getTriangleMaterialIds();
+  this->lightTriangles_ = bvhbuilder.getLightTriangleIds();
+  this->bvh_ = bvhbuilder.getBVH();
   std::cout << "Done!" << std::endl;
 }
 
 const Triangle* CudaModel::getDeviceTriangles() const
 {
-  return thrust::raw_pointer_cast(&triangles[0]);
+  return thrust::raw_pointer_cast(&triangles_[0]);
 }
 
 const Material* CudaModel::getDeviceMaterials() const
 {
-  return thrust::raw_pointer_cast(&materials[0]);
+  return thrust::raw_pointer_cast(&materials_[0]);
 }
 
 const uint32_t* CudaModel::getDeviceTriangleMaterialIds() const
 {
-  return thrust::raw_pointer_cast(&triangleMaterialIds[0]);
-}
-
-const std::string& CudaModel::getFileName() const
-{
-  return fileName;
+  return thrust::raw_pointer_cast(&triangleMaterialIds_[0]);
 }
 
 const AABB& CudaModel::getBbox() const
 {
-  return this->boundingBox;
+  return this->boundingBox_;
 }
 
 const Node* CudaModel::getDeviceBVH() const
 {
-  return thrust::raw_pointer_cast(&bvh[0]);
+  return thrust::raw_pointer_cast(&bvh_[0]);
 }
 
 uint32_t CudaModel::getNTriangles() const
 {
-  return triangles.size();
+  return triangles_.size();
 }
 
 uint32_t CudaModel::getNLights() const
 {
-  return lightTriangles.size();
+  return lightTriangles_.size();
 }
 
 const uint32_t* CudaModel::getDeviceLightIds() const
 {
-  return thrust::raw_pointer_cast(&lightTriangles[0]);
+  return thrust::raw_pointer_cast(&lightTriangles_[0]);
 }
 
 uint32_t CudaModel::getNAddedLights() const
 {
-	return addedLights;
+	return addedLights_;
 }
 
 thrust::host_vector<Triangle> CudaModel::getTriangles() const
 {
-	return triangles;
+	return triangles_;
 }
 
 thrust::host_vector<uint32_t> CudaModel::getLightIds() const
 {
-	return triangleMaterialIds;
+	return triangleMaterialIds_;
 }
 
 thrust::host_vector<uint32_t> CudaModel::getTriangleMaterialIds() const
 {
-	return triangleMaterialIds;
+	return triangleMaterialIds_;
 }

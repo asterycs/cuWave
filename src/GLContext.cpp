@@ -84,8 +84,8 @@ GLContext::GLContext() :
   );
 
   glfwSetWindowSizeCallback(window,
-      [](GLFWwindow *, int width, int height) {
-          App::getInstance().resizeCallbackEvent(width, height);
+      [](GLFWwindow *, int nWidth, int nHeight) {
+          App::getInstance().resizeCallbackEvent(nWidth, nHeight);
       }
   );
 
@@ -175,10 +175,10 @@ glm::ivec2 GLContext::getCursorPos()
 
 bool GLContext::isKeyPressed(const int glfwKey, const int modifiers) const
 {
-  const int ctrl  = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) << 1;
-  const int shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) << 0;
-  const int super = glfwGetKey(window, GLFW_KEY_LEFT_SUPER) || glfwGetKey(window, GLFW_KEY_RIGHT_SUPER) << 3;
-  const int alt   = glfwGetKey(window, GLFW_KEY_LEFT_ALT) || glfwGetKey(window, GLFW_KEY_RIGHT_ALT) << 2;
+  const int ctrl  = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL)) << 1;
+  const int shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT)) << 0;
+  const int super = (glfwGetKey(window, GLFW_KEY_LEFT_SUPER) || glfwGetKey(window, GLFW_KEY_RIGHT_SUPER)) << 3;
+  const int alt   = (glfwGetKey(window, GLFW_KEY_LEFT_ALT) || glfwGetKey(window, GLFW_KEY_RIGHT_ALT)) << 2;
 
   const int pressedMods = shift | ctrl | alt | super;
 
@@ -250,7 +250,7 @@ void GLContext::draw(const GLModel& model, const Camera& camera)
 
 	for (std::size_t i = 0; i < meshSizes.size(); ++i)
 	{
-		const auto material = materials[i];
+		const auto material = materials[i+1];
 
 		modelShader.updateUniformVec3f("material.colorAmbient", cudaf32glmf3(material.colorAmbient));
 		modelShader.updateUniformVec3f("material.colorDiffuse", cudaf32glmf3(material.colorDiffuse));
