@@ -202,22 +202,22 @@ bool BVHBuilder::splitNode(const Node& node, Node& leftChild, Node& rightChild)
     return false;
 
   const SplitCandidate sahCandidate = proposeSAHSplit(node);
-  const SplitCandidate spatialCandidate = proposeSpatialSplit(node);
+  //const SplitCandidate spatialCandidate = proposeSpatialSplit(node);
 
 
   const float sa = node.bbox.area();
   const float parentCost = node.nTri * sa;
 
-  if (sahCandidate.cost < spatialCandidate.cost && sahCandidate.cost < parentCost-1e-5f)
+  if (/*sahCandidate.cost < spatialCandidate.cost && */sahCandidate.cost < parentCost-1e-5f)
   {
       performSplit(sahCandidate, node, leftChild, rightChild);
       return true;
-  }else if (spatialCandidate.cost < sahCandidate.cost && spatialCandidate.cost < parentCost-1e-5f)
+  }/*else if (spatialCandidate.cost < sahCandidate.cost && spatialCandidate.cost < parentCost-1e-5f)
   {
       performSplit(spatialCandidate, node, leftChild, rightChild);
 
       return true;
-  }else
+  }*/else
       return false;
 }
 
@@ -285,14 +285,13 @@ void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector
   finishedNodes.reserve(nodecountAppr);
   touchCount.reserve(nodecountAppr);
 
-  //int leafCount = 0;
-  //int nodeCount = 0;
+  int leafCount = 0;
+  int nodeCount = 0;
 
   stack.push(root);
   parentIndices.push(-1);
 
-  	  	  finishedNodes.push_back(root);
-  /*while (!stack.empty()) {
+  while (!stack.empty()) {
 
     Node node = stack.top();
     stack.pop();
@@ -332,7 +331,7 @@ void BVHBuilder::build(const std::vector<Triangle>& triangles, const std::vector
       }
     }
 
-  }*/
+  }
 
   this->bvh_ = finishedNodes;
 }
